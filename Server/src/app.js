@@ -41,7 +41,7 @@ app.use(
 );
 
 // Routes
-app.get("/", (req, res) => {
+app.get("/api/v1/", (req, res) => {
   res.status(200).json({ message: "Server is live" });
 });
 

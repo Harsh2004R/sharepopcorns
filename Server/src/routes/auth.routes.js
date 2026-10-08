@@ -1,16 +1,13 @@
 import { Router } from "express";
 import {
   forgotPassword,
-  getProfile,
   resetPassword,
-  updateProfile,
   registerUser,
   verifyEmail,
   loginUser,
   resendVerification,
-} from "../../controllers/user.controller.js";
-import { authenticate } from "../../middlewares/auth.middleware.js";
-import { authLimiter, otpLimiter } from "../../middlewares/rateLimiter.js";
+} from "../controllers/user.controller.js";
+import { authLimiter, otpLimiter } from "../middlewares/rateLimiter.js";
 
 const router = Router();
 
@@ -24,14 +21,7 @@ router.post("/resend-verification", otpLimiter, resendVerification);
 router.post("/login", authLimiter, loginUser);
 
 // ==========================================
-// 2. PROFILE & SETTINGS
-// ==========================================
-
-router.get("/profile", authenticate, getProfile);
-router.patch("/profile", authenticate, updateProfile);
-
-// ==========================================
-// 3. PASSWORD RESET
+// 2. PASSWORD RESET
 // ==========================================
 
 router.post("/forgot-password", authLimiter, forgotPassword);
