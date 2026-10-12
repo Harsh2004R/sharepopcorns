@@ -1,14 +1,24 @@
 import { createSystem, defaultConfig, defineConfig } from "@chakra-ui/react";
+import { colorConfig } from "./colors.js";
 
 const config = defineConfig({
   globalCss: {
     html: {
       fontFamily: "body",
     },
+    body: {
+      bg: "fg",
+      color: "black",
+    },
   },
 
   theme: {
+    ...colorConfig.theme,
+
     tokens: {
+      ...colorConfig.theme.tokens,
+
+      // Your existing typography tokens
       fonts: {
         heading: {
           value: "'Header', sans-serif",
@@ -17,7 +27,7 @@ const config = defineConfig({
           value: "'Body', sans-serif",
         },
         caption: {
-          value: "'Caption', sans-serif",
+          value: "'Body', sans-serif",
         },
       },
 

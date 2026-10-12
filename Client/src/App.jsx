@@ -1,17 +1,8 @@
-import { Heading, Text, Box } from "@chakra-ui/react";
-import "./App.css";
+import { RouterProvider } from "react-router-dom";
+import router from "./routes/index.jsx";
+
 function App() {
-  return (
-    <Box>
-      <Heading textStyle="heading">SharePopcorns</Heading>
-
-      <Text textStyle="paragraph">
-        A cozy place to share movies with friends.
-      </Text>
-
-      <Text textStyle="caption">Updated recently</Text>
-    </Box>
-  );
+  return <RouterProvider router={router} />;
 }
 
 export default App;
