@@ -4,8 +4,13 @@ import { Box, Center, Flex, Image, Text } from "@chakra-ui/react";
 
 function TopBar() {
   return (
-    <Box w="100%" h="60px" bg="white">
-      <Flex w="100%" h="100%">
+    <Box
+      //  border="1px solid lime"
+      w="100%"
+      h="70px"
+      bg="white"
+    >
+      <Flex w="100%" pb="2.5" h="100%">
         <Center>
           <Image
             src={logo}
@@ -17,9 +22,9 @@ function TopBar() {
         </Center>
         <Flex alignItems="flex-end" flex="1">
           <Text
-            color="primaryDark"
+            color="primary"
             justifyContent="flex-start"
-            fontFamily={"header"}
+            fontFamily={"heading"}
             letterSpacing={"0.5px"}
             fontSize={"30px"}
           >

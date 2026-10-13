@@ -1,6 +1,9 @@
 // src/routes/privateRoutes.jsx
 import { lazy } from "react";
 import ProtectedRoute from "./ProtectedRoute.jsx";
+const AddMovieOrWebSeries = lazy(() => 
+  import("../features/addMovieOrWebSeries/pages/AddMovieOrWebSeries.jsx")
+);
 const PublicLayout = lazy(() => import("../layouts/PublicLayout.jsx"));
 const AdminLayout = lazy(() => import("../layouts/AdminLayout"));
 const AdminDashboard = lazy(
@@ -19,8 +22,8 @@ export const privateRoutes = [
         element: <PublicLayout />, // Re-using your existing layout!
         children: [
           {
-            path: "/test",
-            element: <Test />,
+            path: "/add",
+            element: <AddMovieOrWebSeries />,
           },
           // You might want to move /order and /placed here if checkout requires login!
         ],

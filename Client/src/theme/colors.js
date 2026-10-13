@@ -44,6 +44,9 @@ export const colorConfig = defineConfig({
         tertiarySoft: {
           value: "#EBF2FF",
         },
+        background: {
+          value: "#faf8f6",
+        },
 
         // Brand-derived shades for charts, gradients,
         // hover states and decorative elements.

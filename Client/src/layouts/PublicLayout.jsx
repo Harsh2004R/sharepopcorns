@@ -12,6 +12,7 @@ const PublicLayout = () => {
       maxW="xl"
       mx="auto"
       p={0}
+      bg="background"
       // border="1px solid red"
       minH="100vh"
       display="flex"
