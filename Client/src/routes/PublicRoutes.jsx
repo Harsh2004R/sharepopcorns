@@ -6,6 +6,7 @@ const AuthLayout = lazy(() => import("../layouts/AuthLayout.jsx"));
 // 🚀 Industry Standard: Lazy load feature components to reduce initial bundle size
 const Home = lazy(() => import("../features/home/pages/Home.jsx"));
 const Login = lazy(() => import("../features/login/pages/Login.jsx"));
+const Welcome = lazy(() => import("../features/welcome/pages/Welcome.jsx"));
 const Signup = lazy(() => import("../features/signup/pages/Signup.jsx"));
 
 export const publicRoutes = [
@@ -30,6 +31,10 @@ export const publicRoutes = [
     ],
   },
 
+  {
+    path: "/welcome",
+    element: <Welcome />,
+  },
   // {
   //   element: <SimpleLayout />,
   //   children: [

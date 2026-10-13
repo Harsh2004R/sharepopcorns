@@ -4,7 +4,7 @@ import { Box, Center, Flex, Image, Text } from "@chakra-ui/react";
 
 function TopBar() {
   return (
-    <Box w="100%" h="60px" borderBottom={"1px solid"} borderColor={"border.muted"}>
+    <Box w="100%" h="60px" bg="white">
       <Flex w="100%" h="100%">
         <Center>
           <Image

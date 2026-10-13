@@ -30,6 +30,9 @@ export const colorConfig = defineConfig({
         transparent: {
           value: "transparent",
         },
+        text: {
+          value: "#594E50",
+        },
 
         // Soft brand surfaces
         primarySoft: {
@@ -64,7 +67,6 @@ export const colorConfig = defineConfig({
         neutralBorder: {
           value: "#DFE2F0",
         },
-      
       },
     },
 
