@@ -9,6 +9,7 @@ import {
   Image,
   DatePicker,
   Portal,
+  Button,
 } from "@chakra-ui/react";
 import {
   X,
@@ -24,6 +25,9 @@ import {
   Lock,
   StarHalf, // Using for the 4.5 star look if needed
 } from "lucide-react";
+import { CustomBadge } from "../../../shared/components/CustomBadge.jsx";
+import { CustomButton } from "../../../shared/components/CustomButton";
+import { useNavigate } from "react-router-dom";
 
 export default function AddMovieOrWebSeries() {
   // ==========================================
@@ -37,7 +41,7 @@ export default function AddMovieOrWebSeries() {
   const [watchDate, setWatchDate] = useState("");
   const [rating, setRating] = useState(9.5);
   const [selectedMoods, setSelectedMoods] = useState(["Cozy"]);
-
+  const navigate = useNavigate();
   // Helper for mood stickers
   const moods = [
     { label: "Cozy", emoji: "✨", bg: "secondarySoft", color: "secondaryDark" },
@@ -329,7 +333,9 @@ export default function AddMovieOrWebSeries() {
                 <DatePicker.Control>
                   <DatePicker.Input color="neutralMuted" />
                   <DatePicker.IndicatorGroup>
-                    <DatePicker.Trigger>
+                    <DatePicker.Trigger
+                      _hover={{ color: "grey", cursor: "pointer" }}
+                    >
                       <Calendar size={16} />
                     </DatePicker.Trigger>
                   </DatePicker.IndicatorGroup>
@@ -486,42 +492,29 @@ export default function AddMovieOrWebSeries() {
 
         {/* Action Buttons */}
         <VStack gap={3}>
-          <Flex
-            w="full"
-            bg="primary"
-            color="white"
-            py={4}
-            borderRadius="full"
-            align="center"
-            justify="center"
-            gap={2}
-            cursor="pointer"
-            _hover={{ bg: "primaryDark" }}
+          <CustomButton
+            variant="primary"
+            onClick={() => console.log("Saved!")}
+            leftElement={
+              <Flex bg="white" color="primary" borderRadius="full" p={0.5}>
+                <Star size={14} fill="currentColor" />
+              </Flex>
+            }
+            rightElement="✨"
           >
-            <Flex bg="white" color="primary" borderRadius="full" p={0.5}>
-              <Star size={14} fill="currentColor" />
-            </Flex>
             <Text fontWeight="bold" fontSize="md">
               Save to My Collection
             </Text>
-            <Text fontSize="md">✨</Text>
-          </Flex>
+          </CustomButton>
 
-          <Flex
-            w="full"
-            bg="neutralSoft"
-            color="neutral"
-            py={4}
-            borderRadius="full"
-            align="center"
-            justify="center"
-            cursor="pointer"
-            _hover={{ bg: "border.muted" }}
+          <CustomButton
+            onClick={() => {
+              navigate("/");
+            }}
+            variant="neutral"
           >
-            <Text fontWeight="bold" fontSize="md">
-              Cancel
-            </Text>
-          </Flex>
+            Cancel
+          </CustomButton>
         </VStack>
       </Box>
       <Box w="100%" h="10vh"></Box>
