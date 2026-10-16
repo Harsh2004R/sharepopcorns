@@ -9,6 +9,7 @@ function TopBar() {
       w="100%"
       h="70px"
       bg="white"
+      // boxShadow="0 0 15px rgba(0, 0, 0, 0.08)"
     >
       <Flex w="100%" pb="2.5" h="100%">
         <Center>

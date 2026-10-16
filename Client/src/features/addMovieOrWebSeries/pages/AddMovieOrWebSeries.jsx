@@ -60,7 +60,7 @@ export default function AddMovieOrWebSeries() {
   };
 
   return (
-    <Box w="full" maxW="md" mx="auto" bg="white" minH="100vh" p={5}>
+    <Box w="full" maxW="lg" mx="auto" bg="white" minH="100vh" p={{base:5,md:6,lg:5}}>
       {/* ==========================================
           PART 1: HEADER & BASIC INFO
           ========================================== */}

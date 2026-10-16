@@ -8,7 +8,10 @@ import Backbar from "./Backbar/Backbar.jsx";
 
 const getPageMeta = (pathname) => {
   if (pathname.includes("/auth/signup")) return { title: "Sign Up" };
+  if (pathname.includes("/auth/verify-email")) return { title: "Verify Email" };
   if (pathname.includes("/auth/login")) return { title: "Login" };
+  if (pathname.includes("/auth/forget-password"))
+    return { title: "Forget Pasword" };
   if (pathname.includes("/playlist/")) return { title: "Playlist" };
   if (pathname === "/") return { title: "Home" };
 

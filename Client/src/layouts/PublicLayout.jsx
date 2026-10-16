@@ -2,7 +2,6 @@
 import { Suspense } from "react";
 import { Outlet } from "react-router-dom";
 import { Box, Text, Container } from "@chakra-ui/react";
-import Navbar from "../layouts/Navbar/Navbar.jsx";
 import Bottombar from "./Bottombar/Bottombar.jsx";
 import Footer from "../layouts/Footer/Footer.jsx";
 import TopBar from "./TopBar/TopBar.jsx";
@@ -19,7 +18,6 @@ const PublicLayout = () => {
       flexDirection="column"
     >
       {/* Integrated Public components */}
-      {/* <Navbar /> */}
       <TopBar />
 
       <Box as="main" flex="1" w="full">
