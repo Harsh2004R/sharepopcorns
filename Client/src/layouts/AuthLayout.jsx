@@ -12,6 +12,8 @@ const getPageMeta = (pathname) => {
   if (pathname.includes("/auth/login")) return { title: "Login" };
   if (pathname.includes("/auth/forget-password"))
     return { title: "Forget Pasword" };
+  if (pathname.includes("/auth/reset-password"))
+    return { title: "Reset Pasword" };
   if (pathname.includes("/playlist/")) return { title: "Playlist" };
   if (pathname === "/") return { title: "Home" };
 

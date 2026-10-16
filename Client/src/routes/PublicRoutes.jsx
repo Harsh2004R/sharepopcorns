@@ -14,6 +14,9 @@ const Home = lazy(() => import("../features/home/pages/Home.jsx"));
 const Login = lazy(() => import("../features/login/pages/Login.jsx"));
 const Welcome = lazy(() => import("../features/welcome/pages/Welcome.jsx"));
 const Signup = lazy(() => import("../features/signup/pages/Signup.jsx"));
+const ResetPassword = lazy(
+  () => import("../features/resetPassword/pages/ResetPassword.jsx"),
+);
 
 export const publicRoutes = [
   {
@@ -36,6 +39,7 @@ export const publicRoutes = [
       { path: "signup", element: <Signup /> },
       { path: "verify-email", element: <VerifyEmail /> },
       { path: "forget-password", element: <ForgotPassword /> },
+      { path: "reset-password", element: <ResetPassword /> },
     ],
   },
 
