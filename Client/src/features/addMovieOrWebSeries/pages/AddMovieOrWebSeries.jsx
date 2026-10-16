@@ -60,7 +60,14 @@ export default function AddMovieOrWebSeries() {
   };
 
   return (
-    <Box w="full" maxW="lg" mx="auto" bg="white" minH="100vh" p={{base:5,md:6,lg:5}}>
+    <Box
+      w="full"
+      maxW="lg"
+      mx="auto"
+      bg="white"
+      minH="100vh"
+      p={{ base: 5, md: 6, lg: 5 }}
+    >
       {/* ==========================================
           PART 1: HEADER & BASIC INFO
           ========================================== */}
@@ -369,19 +376,12 @@ export default function AddMovieOrWebSeries() {
                   *
                 </Text>
               </Text>
-              <Flex
-                bg="secondary"
-                px={3}
-                py={1}
-                borderRadius="full"
-                align="center"
-                gap={1.5}
-              >
-                <Text fontSize="xs">🍿</Text>
+              <CustomBadge variant="secondary">
+                <Text fontSize="xs">🍿 </Text>{" "}
                 <Text fontSize="xs" fontWeight="bold" color="neutral">
                   {rating.toFixed(1)} / 10
                 </Text>
-              </Flex>
+              </CustomBadge>
             </Flex>
 
             {/* Rating Stars & Title */}

@@ -17,6 +17,9 @@ const Signup = lazy(() => import("../features/signup/pages/Signup.jsx"));
 const ResetPassword = lazy(
   () => import("../features/resetPassword/pages/ResetPassword.jsx"),
 );
+const MyCollection = lazy(
+  () => import("../features/myCollection/pages/MyCollection.jsx"),
+);
 
 export const publicRoutes = [
   {
@@ -25,6 +28,10 @@ export const publicRoutes = [
       {
         path: "/",
         element: <Home />,
+      },
+      {
+        path: "/my-collection",
+        element: <MyCollection />,
       },
     ],
   },

@@ -61,7 +61,7 @@ const Bottombar = () => {
         mx="auto"
       >
         <NavItem name="Home" Icon={Home} path="/" />
-        <NavItem name="Collection" Icon={Ticket} path="/collection" />
+        <NavItem name="Collection" Icon={Ticket} path="/my-collection" />
 
         {/* Center Floating Action Button (Add) */}
         <VStack
