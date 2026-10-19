@@ -18,7 +18,7 @@ const PublicLayout = () => {
       flexDirection="column"
     >
       {/* Integrated Public components */}
-      <TopBar />
+      {/* <TopBar /> */}
 
       <Box as="main" flex="1" w="full">
         <Suspense

@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Clock,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 // ==========================================
 // DUMMY COLLECTION DATA
@@ -126,7 +127,7 @@ const MyCollection = () => {
   const [typeFilter, setTypeFilter] = useState("All");
   const [ratingFilter, setRatingFilter] = useState("all");
   const [viewMode, setViewMode] = useState("grid"); // "grid" | "list"
-
+  const navigate = useNavigate();
   // Counts for tabs
   const counts = useMemo(() => {
     return {
@@ -579,6 +580,7 @@ const MyCollection = () => {
               return (
                 <Box
                   key={movie.id}
+                  onClick={() => navigate("/content/details")}
                   bg="white"
                   borderRadius="3xl"
                   p={2.5}

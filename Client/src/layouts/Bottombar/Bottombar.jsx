@@ -102,7 +102,7 @@ const Bottombar = () => {
           </Text>
         </VStack>
 
-        <NavItem name="Explore" Icon={Sparkles} path="/explore" />
+        <NavItem name="Playlist" Icon={Sparkles} path="/my-playlist" />
         <NavItem name="Profile" Icon={Smile} path="/profile" />
       </Flex>
     </Box>

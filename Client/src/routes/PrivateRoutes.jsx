@@ -1,15 +1,23 @@
 // src/routes/privateRoutes.jsx
 import { lazy } from "react";
 import ProtectedRoute from "./ProtectedRoute.jsx";
-const AddMovieOrWebSeries = lazy(() => 
-  import("../features/addMovieOrWebSeries/pages/AddMovieOrWebSeries.jsx")
+const PlaylistDetails = lazy(
+  () => import("../features/playlistDetails/pages/PlaylistDetails.jsx"),
+);
+const MyPlaylist = lazy(
+  () => import("../features/myPlaylist/pages/MyPlaylist.jsx"),
+);
+const MovieDetails = lazy(
+  () => import("../features/movieDetails/pages/MovieDetails.jsx"),
+);
+const AddMovieOrWebSeries = lazy(
+  () => import("../features/addMovieOrWebSeries/pages/AddMovieOrWebSeries.jsx"),
 );
 const PublicLayout = lazy(() => import("../layouts/PublicLayout.jsx"));
 const AdminLayout = lazy(() => import("../layouts/AdminLayout"));
 const AdminDashboard = lazy(
   () => import("../features/admin/pages/AdminDashboard.jsx"),
 );
-const Test = lazy(() => import("../features/test/pages/Test.jsx"));
 
 export const privateRoutes = [
   // ==========================================
@@ -24,6 +32,18 @@ export const privateRoutes = [
           {
             path: "/add",
             element: <AddMovieOrWebSeries />,
+          },
+          {
+            path: "/content/details",
+            element: <MovieDetails />,
+          },
+          {
+            path: "/my-playlist",
+            element: <MyPlaylist />,
+          },
+          {
+            path: "/playlist/:id",
+            element: <PlaylistDetails />,
           },
           // You might want to move /order and /placed here if checkout requires login!
         ],
