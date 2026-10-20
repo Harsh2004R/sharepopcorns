@@ -156,7 +156,7 @@ const MyPlaylist = () => {
               fontSize="xs"
               fontFamily="body"
               leftElement={<Plus size={15} strokeWidth={3} />}
-              onClick={() => console.log("Create new playlist")}
+              onClick={() => navigate("/add-new/playlist")}
             >
               New Playlist
             </CustomButton>

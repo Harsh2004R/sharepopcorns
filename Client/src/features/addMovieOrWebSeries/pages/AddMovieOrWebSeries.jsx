@@ -62,7 +62,6 @@ export default function AddMovieOrWebSeries() {
   return (
     <Box
       w="full"
-      maxW="lg"
       mx="auto"
       bg="white"
       minH="100vh"
@@ -104,13 +103,14 @@ export default function AddMovieOrWebSeries() {
           borderRadius="full"
           align="center"
           justify="center"
+          onClick={() => navigate(-1)}
           cursor="pointer"
         >
           <X size={18} color="#73778D" />
         </Flex>
       </Flex>
 
-      <Box borderBottom="2px dashed" borderColor="secondaryDark" mb={6} />
+      <Box borderBottom="1px solid" borderColor="neutralMuted/25" mb={6} />
 
       <VStack gap={5} align="stretch" mb={8}>
         {/* Title Input */}
@@ -488,7 +488,7 @@ export default function AddMovieOrWebSeries() {
           })}
         </Flex>
 
-        <Box borderBottom="2px dashed" borderColor="secondaryDark" mb={6} />
+        <Box borderBottom="1px solid" borderColor="neutralMuted/25" mb={6} />
 
         {/* Action Buttons */}
         <VStack gap={3}>
@@ -509,7 +509,7 @@ export default function AddMovieOrWebSeries() {
 
           <CustomButton
             onClick={() => {
-              navigate("/");
+              navigate(-1);
             }}
             variant="neutral"
           >
