@@ -178,7 +178,7 @@ const MyCollection = () => {
     <Box
       minH="100vh"
       w="full"
-      bg="white"
+      bg="background"
       fontFamily="body"
       px={4}
       pt={4}

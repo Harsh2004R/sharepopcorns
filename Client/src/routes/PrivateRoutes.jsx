@@ -1,6 +1,7 @@
 // src/routes/privateRoutes.jsx
 import { lazy } from "react";
 import ProtectedRoute from "./ProtectedRoute.jsx";
+const Profile = lazy(() => import("../features/profile/pages/Profile.jsx"));
 const AddNewPlaylist = lazy(
   () => import("../features/addNewPlaylist/pages/AddNewPlaylist.jsx"),
 );
@@ -51,6 +52,10 @@ export const privateRoutes = [
           {
             path: "/add-new/playlist/",
             element: <AddNewPlaylist />,
+          },
+          {
+            path: "/profile",
+            element: <Profile />,
           },
           // You might want to move /order and /placed here if checkout requires login!
         ],
