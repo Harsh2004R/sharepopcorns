@@ -28,7 +28,7 @@ export const privateRoutes = [
   // 1. CUSTOMER ROUTES (Needs Auth, uses Public Header/Footer)
   // ==========================================
   {
-    element: <ProtectedRoute allowedRoles={["USER", "ADMIN"]} />,
+    element: <ProtectedRoute allowedRoles={["customer", "admin"]} />,
     children: [
       {
         element: <PublicLayout />, // Re-using your existing layout!
@@ -67,7 +67,7 @@ export const privateRoutes = [
   //  ADMIN ROUTES (Needs Admin Auth)
   // ==========================================
   {
-    element: <ProtectedRoute allowedRoles={["ADMIN"]} />,
+    element: <ProtectedRoute allowedRoles={["admin"]} />,
     children: [
       {
         element: <AdminLayout />, // Custom layout for superusers

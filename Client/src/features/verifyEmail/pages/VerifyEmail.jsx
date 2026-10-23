@@ -1,28 +1,86 @@
-import React, { useState, useRef } from "react";
+// src/features/verifyEmail/pages/VerifyEmail.jsx
+import React, { useState, useRef, useEffect } from "react";
 import { Box, Flex, Text, Input, VStack } from "@chakra-ui/react";
-import { Ticket, Pencil, Sparkles, Timer, Lock } from "lucide-react";
+import { Ticket, Pencil, Sparkles, Timer, Lock, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { CustomButton } from "../../../shared/components/CustomButton"; // Adjust path as needed
-import { CustomBadge } from "../../../shared/components/CustomBadge"; // Adjust path as needed
+import { useSelector } from "react-redux";
+import { CustomButton } from "../../../shared/components/CustomButton";
+import { CustomBadge } from "../../../shared/components/CustomBadge";
+import {
+  useVerifyEmailMutation,
+  useResendVerificationMutation,
+} from "../../../hooks/useAuthMutations.js";
+import { useThrottledCallback } from "../../../hooks/usePerformance.js";
+import { toaster } from "../../../components/ui/toaster.jsx";
 
 const VerifyEmail = () => {
   const navigate = useNavigate();
+  const pendingEmail = useSelector(
+    (state) => state.auth.pendingVerificationEmail,
+  );
+
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(600); // 10 minutes matching backend OTP validity
   const inputRefs = useRef([]);
 
-  const handleOtpChange = (index, value) => {
-    // Allow only single numeric digit
-    if (!/^\d*$/.test(value)) return;
+  const { mutate: verifyEmail, isPending: isVerifying } =
+    useVerifyEmailMutation();
+  const { mutate: resendOtp, isPending: isResending } =
+    useResendVerificationMutation();
 
+  // Redirect back to signup if user lands here without an email in state
+  useEffect(() => {
+    if (!pendingEmail) {
+      navigate("/auth/signup", { replace: true });
+    }
+  }, [pendingEmail, navigate]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (secondsLeft <= 0) return;
+    const interval = setInterval(() => {
+      setSecondsLeft((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [secondsLeft]);
+
+  const formatTime = (totalSeconds) => {
+    const mins = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+    const secs = String(totalSeconds % 60).padStart(2, "0");
+    return `${mins}:${secs}`;
+  };
+
+  const handleOtpChange = (index, value) => {
+    if (!/^\d*$/.test(value)) return;
     const updatedOtp = [...otp];
     updatedOtp[index] = value.slice(-1);
     setOtp(updatedOtp);
 
-    // Move focus to next box if a digit was entered
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
+  };
+
+  // Support pasting full 6-digit code at once
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedDigits = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, 6)
+      .split("");
+
+    if (pastedDigits.length === 0) return;
+
+    const updatedOtp = [...otp];
+    pastedDigits.forEach((digit, idx) => {
+      updatedOtp[idx] = digit;
+    });
+    setOtp(updatedOtp);
+
+    const focusIndex = Math.min(pastedDigits.length, 5);
+    inputRefs.current[focusIndex]?.focus();
   };
 
   const handleKeyDown = (index, e) => {
@@ -31,11 +89,34 @@ const VerifyEmail = () => {
     }
   };
 
+  const throttledVerify = useThrottledCallback((code) => {
+    verifyEmail({ email: pendingEmail, otp: code });
+  }, 1500);
+
   const handleVerify = (e) => {
     e.preventDefault();
     const code = otp.join("");
-    console.log("Verifying OTP:", code);
+    if (code.length < 6) {
+      toaster.create({
+        title: "Incomplete Code",
+        description: "Please enter all 6 digits of your verification code.",
+        type: "warning",
+      });
+      return;
+    }
+    throttledVerify(code);
   };
+
+  const handleResend = useThrottledCallback(() => {
+    if (!pendingEmail || isResending) return;
+    resendOtp(pendingEmail, {
+      onSuccess: () => {
+        setOtp(["", "", "", "", "", ""]);
+        setSecondsLeft(600);
+        inputRefs.current[0]?.focus();
+      },
+    });
+  }, 5000);
 
   return (
     <Box minH="100vh" w="full" bg="white" px={4} py={10} fontFamily="body">
@@ -53,7 +134,6 @@ const VerifyEmail = () => {
           borderColor="neutralBorder"
           position="relative"
         >
-          {/* Overlapping Top Ticket Badge */}
           <Flex
             position="absolute"
             top="-14px"
@@ -76,7 +156,6 @@ const VerifyEmail = () => {
           </Flex>
 
           <VStack gap={6} align="stretch">
-            {/* Target Email Address Box */}
             <Box bg="neutralSoft" borderRadius="2xl" p={4} textAlign="center">
               <Text fontFamily="body" fontSize="sm" color="text" mb={1}>
                 We've sent a 6-digit verification code to
@@ -88,7 +167,7 @@ const VerifyEmail = () => {
                   fontWeight="bold"
                   color="primary"
                 >
-                  mia@example.com
+                  {pendingEmail || "your email"}
                 </Text>
                 <Flex
                   w="22px"
@@ -99,6 +178,7 @@ const VerifyEmail = () => {
                   align="center"
                   justify="center"
                   cursor="pointer"
+                  onClick={() => navigate("/auth/signup")}
                   _hover={{ color: "neutral" }}
                 >
                   <Pencil size={11} color="currentColor" />
@@ -106,7 +186,6 @@ const VerifyEmail = () => {
               </Flex>
             </Box>
 
-            {/* 6-Digit OTP Input Section */}
             <Box>
               <Text
                 fontFamily="body"
@@ -119,8 +198,7 @@ const VerifyEmail = () => {
               >
                 ENTER VERIFICATION CODE
               </Text>
-
-              <Flex justify="space-between" gap={2}>
+              <Flex justify="space-between" gap={2} onPaste={handlePaste}>
                 {otp.map((digit, index) => {
                   const isFocused = activeIndex === index;
                   return (
@@ -153,10 +231,6 @@ const VerifyEmail = () => {
                         fontWeight="bold"
                         color="neutral"
                         p={0}
-                        _placeholder={{
-                          color: "fg.subtle",
-                          fontSize: "lg",
-                        }}
                       />
                     </Flex>
                   );
@@ -164,35 +238,49 @@ const VerifyEmail = () => {
               </Flex>
             </Box>
 
-            {/* Verify Email Button */}
             <CustomButton
               type="submit"
               variant="primary"
               fontFamily="body"
+              disabled={isVerifying}
               rightElement={<Sparkles size={16} color="currentColor" />}
             >
-              Verify Email
+              {isVerifying ? "Verifying..." : "Verify Email"}
             </CustomButton>
 
-            {/* Expiration Countdown */}
-            <Flex align="center" justify="center" gap={1.5}>
-              <Box color="primary" display="inline-flex">
-                <Timer size={15} color="currentColor" />
-              </Box>
-              <Text fontFamily="body" fontSize="xs" color="neutralMuted">
-                Code expires in{" "}
-                <Text
-                  as="span"
-                  fontFamily="body"
-                  fontWeight="bold"
-                  color="primary"
-                >
-                  02:57
+            <Flex align="center" justify="space-between" px={1}>
+              <Flex align="center" gap={1.5}>
+                <Box color="primary" display="inline-flex">
+                  <Timer size={15} color="currentColor" />
+                </Box>
+                <Text fontFamily="body" fontSize="xs" color="neutralMuted">
+                  Expires in{" "}
+                  <Text
+                    as="span"
+                    fontFamily="body"
+                    fontWeight="bold"
+                    color="primary"
+                  >
+                    {formatTime(secondsLeft)}
+                  </Text>
                 </Text>
-              </Text>
+              </Flex>
+
+              <Flex
+                align="center"
+                gap={1}
+                cursor={isResending ? "not-allowed" : "pointer"}
+                color="primary"
+                onClick={handleResend}
+                _hover={{ color: "primaryDark" }}
+              >
+                <RefreshCw size={13} />
+                <Text fontFamily="body" fontSize="xs" fontWeight="bold">
+                  {isResending ? "Sending..." : "Resend Code"}
+                </Text>
+              </Flex>
             </Flex>
 
-            {/* Security Notice Box */}
             <Flex
               bg="neutralSoft"
               borderRadius="2xl"
@@ -223,7 +311,6 @@ const VerifyEmail = () => {
               </Text>
             </Flex>
 
-            {/* Back to Sign Up Link */}
             <Text
               fontFamily="body"
               fontSize="xs"

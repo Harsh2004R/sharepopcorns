@@ -1,17 +1,27 @@
+// src/features/forgetPassword/pages/ForgotPassword.jsx
 import React, { useState } from "react";
 import { Box, Flex, Text, VStack } from "@chakra-ui/react";
 import { Mail, Info, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { CustomInput } from "../../../shared/components/CustomInput"; // Adjust path as needed
-import { CustomButton } from "../../../shared/components/CustomButton"; // Adjust path as needed
+import { CustomInput } from "../../../shared/components/CustomInput";
+import { CustomButton } from "../../../shared/components/CustomButton";
+import { useForgotPasswordMutation } from "../../../hooks/useAuthMutations.js";
+import { useThrottledCallback } from "../../../hooks/usePerformance.js";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
+  const { mutate: sendResetLink, isPending } = useForgotPasswordMutation();
+
+  const throttledSubmit = useThrottledCallback(() => {
+    if (!email.trim()) return;
+    sendResetLink(email.trim().toLowerCase());
+  }, 3000);
 
   const handleResetSubmit = (e) => {
     e.preventDefault();
-    console.log("Sending reset link to:", email);
+    if (isPending) return;
+    throttledSubmit();
   };
 
   return (
@@ -28,7 +38,6 @@ const ForgotPassword = () => {
           borderColor="neutralBorder"
         >
           <VStack gap={5} align="stretch">
-            {/* Account Email Input */}
             <Box w="full" fontFamily="body">
               <Flex justify="space-between" align="center" mb={2}>
                 <Text
@@ -40,12 +49,12 @@ const ForgotPassword = () => {
                   Your Account Email
                 </Text>
                 <Text fontFamily="body" fontSize="xs" color="neutralMuted">
-                  Case-sensitive
+                  Reset link valid for 10m
                 </Text>
               </Flex>
-
               <CustomInput
                 type="email"
+                required
                 placeholder="cinema-lover@popcorn.club"
                 LeftIcon={Mail}
                 value={email}
@@ -53,7 +62,6 @@ const ForgotPassword = () => {
               />
             </Box>
 
-            {/* Spam/Promotions Folder Notice */}
             <Flex
               bg="neutralSoft"
               borderRadius="xl"
@@ -75,19 +83,18 @@ const ForgotPassword = () => {
               </Text>
             </Flex>
 
-            {/* Send Reset Link Button */}
             <Box pt={1}>
               <CustomButton
                 type="submit"
                 variant="primary"
                 fontFamily="body"
+                disabled={isPending}
                 rightElement="💌"
               >
-                Send Reset Link
+                {isPending ? "Sending Link..." : "Send Reset Link"}
               </CustomButton>
             </Box>
 
-            {/* Back to Login Footer Link */}
             <Flex
               align="center"
               justify="center"

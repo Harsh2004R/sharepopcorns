@@ -1,28 +1,27 @@
+// src/features/resetPassword/pages/ResetPassword.jsx
 import React, { useState } from "react";
 import { Box, Flex, Text, VStack } from "@chakra-ui/react";
-import {
-  Lock,
-  Eye,
-  EyeOff,
-  Check,
-  Lightbulb,
-  Ticket,
-  ArrowLeft,
-} from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Lock, Check, Lightbulb, Ticket, ArrowLeft } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { CustomInput } from "../../../shared/components/CustomInput";
-import { CustomButton } from "../../../shared/components/CustomButton"; // Adjust path as needed
+import { CustomButton } from "../../../shared/components/CustomButton";
+import { useResetPasswordMutation } from "../../../hooks/useAuthMutations.js";
+import { useThrottledCallback } from "../../../hooks/usePerformance.js";
+import { toaster } from "../../../components/ui/toaster.jsx";
+
 const ResetPassword = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get("token");
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Live password validation checks
+  const { mutate: resetPassword, isPending } = useResetPasswordMutation();
+
   const hasMinLength = newPassword.length >= 8;
   const hasNumber = /\d/.test(newPassword);
   const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
-
   const passedChecks = [hasMinLength, hasNumber, hasSpecialChar].filter(
     Boolean,
   ).length;
@@ -30,24 +29,52 @@ const ResetPassword = () => {
   const getStrengthMeta = () => {
     if (newPassword.length === 0)
       return { label: "", width: "10%", color: "secondary" };
-    if (newPassword.length < 3)
+    if (passedChecks === 1)
       return { label: "MEDIUM", width: "40%", color: "secondary" };
-    if (newPassword.length < 6)
-      return { label: "GOOD", width: "60%", color: "secondary" };
+    if (passedChecks === 2)
+      return { label: "GOOD", width: "70%", color: "secondary" };
     return { label: "STRONG", width: "100%", color: "primary" };
   };
-
   const strength = getStrengthMeta();
+
+  const throttledReset = useThrottledCallback(() => {
+    if (!token) {
+      toaster.create({
+        title: "Missing Reset Token",
+        description: "Please open the exact reset link from your email.",
+        type: "error",
+      });
+      return;
+    }
+    if (!hasMinLength) {
+      toaster.create({
+        title: "Weak Password",
+        description: "Password must be at least 8 characters long.",
+        type: "warning",
+      });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toaster.create({
+        title: "Passwords Do Not Match",
+        description: "Please make sure both password fields match.",
+        type: "warning",
+      });
+      return;
+    }
+
+    resetPassword({ token, password: newPassword });
+  }, 1500);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log("Submitting password update...");
+    if (isPending) return;
+    throttledReset();
   };
 
   return (
     <Box minH="100vh" w="full" bg="white" px={4} py={10} fontFamily="body">
       <Flex direction="column" align="center" maxW="md" mx="auto">
-        {/* Main White Form Card */}
         <Box
           as="form"
           onSubmit={handleSubmit}
@@ -59,7 +86,6 @@ const ResetPassword = () => {
           borderColor="neutralBorder"
         >
           <VStack gap={5} align="stretch">
-            {/* Header Title & Subtitle */}
             <Box>
               <Flex align="center" gap={2}>
                 <Text
@@ -75,19 +101,17 @@ const ResetPassword = () => {
               </Flex>
             </Box>
 
-            {/* New Password Field */}
             <CustomInput
               label="New Password"
               type="password"
+              required
               placeholder="Enter new password"
               LeftIcon={Lock}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
             />
 
-            {/* Password Strength Card */}
             <Box bg="tertiarySoft" borderRadius="2xl" p={4}>
-              {/* Strength Header */}
               <Flex justify="space-between" align="center" mb={2}>
                 <Text
                   fontFamily="body"
@@ -107,8 +131,6 @@ const ResetPassword = () => {
                   {strength.label}
                 </Text>
               </Flex>
-
-              {/* Strength Progress Bar */}
               <Box
                 w="full"
                 h="4px"
@@ -125,8 +147,6 @@ const ResetPassword = () => {
                   transition="all 0.3s ease-out"
                 />
               </Box>
-
-              {/* Requirement Checklist */}
               <VStack gap={2} align="stretch">
                 {[
                   { label: "At least 8 characters", valid: hasMinLength },
@@ -168,17 +188,16 @@ const ResetPassword = () => {
               </VStack>
             </Box>
 
-            {/* Confirm New Password Field */}
             <CustomInput
               label="Confirm New Password"
               type="password"
+              required
               placeholder="Re-enter password"
               LeftIcon={Lock}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
 
-            {/* Tip Notice Box */}
             <Flex
               bg="tertiarySoft"
               borderRadius="xl"
@@ -200,20 +219,19 @@ const ResetPassword = () => {
               </Text>
             </Flex>
 
-            {/* Submit Action Button */}
             <Box pt={1}>
               <CustomButton
                 type="submit"
                 variant="primary"
                 fontFamily="body"
+                disabled={isPending}
                 leftElement={<Ticket size={16} color="currentColor" />}
                 rightElement="✨"
               >
-                Update Password & Log In
+                {isPending ? "Updating..." : "Update Password & Log In"}
               </CustomButton>
             </Box>
 
-            {/* Cancel and return to Login */}
             <Flex
               align="center"
               justify="center"

@@ -1,21 +1,28 @@
-// src/components/common/ProtectedRoute.jsx
-import { Navigate, Outlet } from "react-router-dom";
+// src/routes/ProtectedRoute.jsx
+import React from "react";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useSelector } from "react-redux";
 
-const ProtectedRoute = ({ allowedRoles }) => {
-  // const { user, isAuthenticated } = useSelector((state) => state.auth);
-  const { user, isAuthenticated } = {
-    isAuthenticated: true, // Change to false to test guest redirect to /auth/login
-    user: {
-      name: "Test User",
-      role: "USER", // 🔄  'VENDOR' or 'ADMIN' to test layouts
-    },
-  };
-  if (!isAuthenticated) {
-    return <Navigate to="/auth/login" replace />; // FIX: Point to auth/login
+const ProtectedRoute = ({ allowedRoles = [] }) => {
+  const location = useLocation();
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
+
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/auth/login" state={{ from: location }} replace />;
   }
 
-  if (!allowedRoles.includes(user?.role)) {
-    return <Navigate to="/" replace />; // FIX: Send to home or an 'Unauthorized' page
+  if (allowedRoles.length > 0) {
+    const normalizedUserRole = (user.role || "").toLowerCase();
+    const normalizedAllowed = allowedRoles.map((role) => role.toLowerCase());
+
+    // Map "user" alias to "customer" so existing route definitions work without breaking
+    const hasAccess =
+      normalizedAllowed.includes(normalizedUserRole) ||
+      (normalizedUserRole === "customer" && normalizedAllowed.includes("user"));
+
+    if (!hasAccess) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   return <Outlet />;
