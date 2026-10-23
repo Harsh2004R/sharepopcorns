@@ -64,7 +64,7 @@ export const sendOtpEmail = async (to, otp, type = "VERIFY_EMAIL") => {
 };
 
 export const sendPasswordResetEmail = async (to, token) => {
-  const resetUrl = `${ENV.CLIENT_URL || "http://localhost:5173"}/reset-password?token=${token}`;
+  const resetUrl = `${ENV.CLIENT_URL || "http://localhost:5173"}/auth/reset-password?token=${token}`;
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 8px;">
       <h2 style="color: #333; text-align: center;">Password Reset Request</h2>
