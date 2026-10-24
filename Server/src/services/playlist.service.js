@@ -19,6 +19,8 @@ const assertPlaylistOwner = (playlist, userId) => {
   }
 };
 
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const populatePlaylist = (query) =>
   query.populate({
     path: "movies.movie",
@@ -66,7 +68,7 @@ export const createPlaylist = async (userId, payload) => {
   const existingPlaylist = await Playlist.findOne({
     owner: userId,
     // Using a case-insensitive regex so "Action" and "action" trigger the duplicate error
-    name: { $regex: new RegExp(`^${playlistName}$`, "i") },
+    name: { $regex: new RegExp(`^${escapeRegex(playlistName)}$`, "i") },
   });
 
   // 2. Throw a 409 Conflict error if a match is found

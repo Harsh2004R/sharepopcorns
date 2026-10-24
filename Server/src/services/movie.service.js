@@ -25,6 +25,8 @@ const assertMovieOwner = (movie, userId) => {
   }
 };
 
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const parseOptionalDate = (value, fieldName) => {
   if (value === undefined || value === null || value === "") {
     return null;
@@ -113,7 +115,7 @@ export const createMovie = async (userId, payload) => {
   const existingMovie = await Movie.findOne({
     owner: userId,
     type: type,
-    title: { $regex: new RegExp(`^${movieTitle}$`, "i") }, // Case-insensitive exact match
+    title: { $regex: new RegExp(`^${escapeRegex(movieTitle)}$`, "i") }, // Case-insensitive exact match
   });
 
   // 2. Throw a 409 Conflict error if a match is found
