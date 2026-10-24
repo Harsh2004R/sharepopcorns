@@ -7,9 +7,7 @@ import {
   Input,
   Textarea,
   Image,
-  DatePicker,
-  Portal,
-  Button,
+  SimpleGrid,
 } from "@chakra-ui/react";
 import {
   X,
@@ -23,501 +21,908 @@ import {
   CalendarClock,
   Star,
   Lock,
-  StarHalf, // Using for the 4.5 star look if needed
+  Sparkles,
+  Info,
+  Image as ImageIcon,
 } from "lucide-react";
-import { CustomBadge } from "../../../shared/components/CustomBadge.jsx";
-import { CustomButton } from "../../../shared/components/CustomButton";
 import { useNavigate } from "react-router-dom";
+import { CustomBadge } from "../../../shared/components/CustomBadge";
+import { CustomButton } from "../../../shared/components/CustomButton";
 
-export default function AddMovieOrWebSeries() {
-  // ==========================================
-  // FORM STATES
-  // ==========================================
-  const [title, setTitle] = useState("");
-  const [format, setFormat] = useState("Movie");
-  const [posterUrl, setPosterUrl] = useState("");
-  const [synopsis, setSynopsis] = useState("");
-  const [watchStatus, setWatchStatus] = useState("Watched");
-  const [watchDate, setWatchDate] = useState("");
-  const [rating, setRating] = useState(9.5);
-  const [selectedMoods, setSelectedMoods] = useState(["Cozy"]);
+export default function AddMovieOrWebSeries({ onSubmitMovie }) {
   const navigate = useNavigate();
-  // Helper for mood stickers
-  const moods = [
+
+  // ==========================================
+  // FORM STATES (Mapped to Mongoose Schema)
+  // ==========================================
+  const [type, setType] = useState("Movie"); // MOVIE_TYPE_VALUES
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [image, setImage] = useState("");
+  const [status, setStatus] = useState("Watched"); // MOVIE_STATUS_VALUES
+  const [rating, setRating] = useState(9.0);
+  const [watchedDate, setWatchedDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
+  const [scheduledDate, setScheduledDate] = useState("");
+
+  // Validation & UI states
+  const [errors, setErrors] = useState({});
+  const [selectedMoods, setSelectedMoods] = useState(["Cozy"]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Preset Mood tags to quickly enrich the description
+  const moodTags = [
     { label: "Cozy", emoji: "✨", bg: "secondarySoft", color: "secondaryDark" },
     { label: "Tearjerker", emoji: "💧", bg: "primarySoft", color: "primary" },
     { label: "Date Night", emoji: "🕯️", bg: "tertiarySoft", color: "neutral" },
     { label: "Rewatch", emoji: "🔄", bg: "tertiarySoft", color: "neutral" },
-    { label: "Indie Gem", emoji: "🍿", bg: "tertiarySoft", color: "neutral" },
+    {
+      label: "Indie Gem",
+      emoji: "🍿",
+      bg: "secondarySoft",
+      color: "secondaryDark",
+    },
   ];
 
-  const toggleMood = (moodLabel) => {
+  const handleMoodClick = (mood) => {
     setSelectedMoods((prev) =>
-      prev.includes(moodLabel)
-        ? prev.filter((m) => m !== moodLabel)
-        : [...prev, moodLabel],
+      prev.includes(mood.label)
+        ? prev.filter((m) => m !== mood.label)
+        : [...prev, mood.label],
     );
+
+    // Contextually append to description if not already present
+    if (!description.includes(mood.label)) {
+      setDescription((prev) =>
+        prev
+          ? `${prev} • ${mood.emoji} ${mood.label}`
+          : `${mood.emoji} ${mood.label}`,
+      );
+    }
+  };
+
+  const getScoreMeta = (val) => {
+    if (val >= 9.0) return { title: "Masterpiece Popcorn!", emoji: "🏆" };
+    if (val >= 7.5) return { title: "Great Watch!", emoji: "🍿" };
+    if (val >= 5.0) return { title: "Decent Comfort Film", emoji: "☕" };
+    return { title: "Burnt Kernel", emoji: "🥣" };
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!title.trim()) {
+      newErrors.title = "Movie or Series title is required";
+    }
+    if (status === "Scheduled" && !scheduledDate) {
+      newErrors.scheduledDate = "Please choose a planned watch date";
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+
+    // Exact payload structured for movieService.createMovie
+    const payload = {
+      type,
+      title: title.trim(),
+      description: description.trim(),
+      image: image.trim() || null,
+      status,
+      rating: status === "Watched" ? Number(rating) : null,
+      watchedDate:
+        status === "Watched"
+          ? watchedDate
+            ? new Date(watchedDate)
+            : new Date()
+          : null,
+      scheduledDate:
+        status === "Scheduled"
+          ? scheduledDate
+            ? new Date(scheduledDate)
+            : null
+          : null,
+    };
+
+    try {
+      if (onSubmitMovie) {
+        await onSubmitMovie(payload);
+      } else {
+        console.log("Submitting Movie Payload:", payload);
+      }
+      navigate(-1);
+    } catch (err) {
+      setErrors({ form: err.message || "Failed to save title" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <Box
-      w="full"
-      mx="auto"
-      bg="white"
       minH="100vh"
-      p={{ base: 5, md: 6, lg: 5 }}
+      w="full"
+      bg="white"
+      fontFamily="body"
+      px={4}
+      pt={4}
+      pb={24}
     >
-      {/* ==========================================
-          PART 1: HEADER & BASIC INFO
-          ========================================== */}
+      <Box maxW="lg" mx="auto">
+        {/* ========================================================
+            1. TOP NAVIGATION HEADER
+            ======================================================== */}
+        <Flex justify="space-between" align="center" mb={4}>
+          <Flex align="center" gap={3}>
+            <Flex
+              w="42px"
+              h="42px"
+              bg="secondary"
+              borderRadius="2xl"
+              align="center"
+              justify="center"
+              color="secondaryDark"
+              boxShadow="0 4px 12px rgba(255, 209, 102, 0.3)"
+            >
+              <Ticket size={22} color="currentColor" />
+            </Flex>
+            <Box>
+              <Flex align="center" gap={1.5}>
+                <Text fontSize="2xl" fontWeight="extrabold" color="neutral">
+                  Log Cinema Memory
+                </Text>
+                <Text fontSize="md">🍿</Text>
+              </Flex>
+              <Text fontFamily="body" fontSize="2xs" color="neutralMuted">
+                Add to your permanent diary & shelves
+              </Text>
+            </Box>
+          </Flex>
 
-      {/* Header */}
-      <Flex justify="space-between" align="flex-start" mb={4}>
-        <Flex gap={3}>
           <Flex
-            w="48px"
-            h="48px"
-            bg="secondarySoft"
-            borderRadius="xl"
+            w="34px"
+            h="34px"
+            bg="neutralSoft"
+            borderRadius="full"
             align="center"
             justify="center"
-          >
-            <Ticket size={24} />
-          </Flex>
-          <Box>
-            <Flex align="center" gap={2}>
-              <Text fontSize="xl" fontWeight="bold" color="neutral">
-                Log a Movie or Series
-              </Text>
-              <Text fontSize="xl">🍿</Text>
-            </Flex>
-            <Text fontSize="sm" color="neutralMuted">
-              Add to your personal cinema memories
-            </Text>
-          </Box>
-        </Flex>
-        <Flex
-          w="32px"
-          h="32px"
-          bg="neutralSoft"
-          borderRadius="full"
-          align="center"
-          justify="center"
-          onClick={() => navigate(-1)}
-          cursor="pointer"
-        >
-          <X size={18} color="#73778D" />
-        </Flex>
-      </Flex>
-
-      <Box borderBottom="1px solid" borderColor="neutralMuted/25" mb={6} />
-
-      <VStack gap={5} align="stretch" mb={8}>
-        {/* Title Input */}
-        <Box>
-          <Flex justify="space-between" align="center" mb={2}>
-            <Text fontSize="sm" fontWeight="bold" color="neutral">
-              Title{" "}
-              <Text as="span" color="primary">
-                *
-              </Text>
-            </Text>
-            <Text fontSize="xs" color="neutralMuted">
-              Mandatory
-            </Text>
-          </Flex>
-          <Flex bg="neutralSoft" p={3} borderRadius="xl" align="center" gap={3}>
-            <Clapperboard size={20} color="#73778D" />
-            <Input
-              bg="neutralSoft"
-              variant="unstyled"
-              placeholder="Movie / webseries title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              color="neutral"
-              fontWeight="medium"
-              fontSize="sm"
-            />
-          </Flex>
-        </Box>
-
-        {/* Format Type */}
-        <Box>
-          <Text fontSize="sm" fontWeight="bold" color="neutral" mb={2}>
-            Format Type
-          </Text>
-          <Flex bg="neutralSoft" p={1} borderRadius="xl" gap={1}>
-            <Flex
-              flex={1}
-              py={2.5}
-              bg={format === "Movie" ? "white" : "transparent"}
-              color={format === "Movie" ? "primary" : "neutralMuted"}
-              borderRadius="lg"
-              align="center"
-              justify="center"
-              gap={2}
-              cursor="pointer"
-              boxShadow={format === "Movie" ? "xs" : "none"}
-              onClick={() => setFormat("Movie")}
-            >
-              <Clapperboard size={18} />
-              <Text fontWeight="bold" fontSize="sm">
-                Movie
-              </Text>
-            </Flex>
-            <Flex
-              flex={1}
-              py={2.5}
-              bg={format === "Web Series" ? "white" : "transparent"}
-              color={format === "Web Series" ? "primary" : "neutralMuted"}
-              borderRadius="lg"
-              align="center"
-              justify="center"
-              gap={2}
-              cursor="pointer"
-              boxShadow={format === "Web Series" ? "xs" : "none"}
-              onClick={() => setFormat("Web Series")}
-            >
-              <Tv size={18} />
-              <Text fontWeight="bold" fontSize="sm">
-                Web Series
-              </Text>
-            </Flex>
-          </Flex>
-        </Box>
-
-        {/* Poster Image URL */}
-        <Box>
-          <Text fontSize="sm" fontWeight="bold" color="neutral" mb={2}>
-            Poster Image URL
-          </Text>
-          <Flex gap={3} align="center">
-            <Flex
-              flex={1}
-              bg="neutralSoft"
-              p={3}
-              borderRadius="xl"
-              align="center"
-              gap={3}
-            >
-              <LinkIcon size={18} color="#9296A8" />
-              <Input
-                variant="unstyled"
-                bg="neutralSoft"
-                value={posterUrl}
-                onChange={(e) => setPosterUrl(e.target.value)}
-                color="neutral"
-                fontSize="sm"
-                placeholder="enter poster url..."
-              />
-            </Flex>
-            <Image
-              src={posterUrl}
-              w="48px"
-              h="48px"
-              borderRadius="full"
-              objectFit="cover"
-            />
-          </Flex>
-          <Text fontSize="xs" color="neutralMuted" mt={1}>
-            Paste direct image URL for poster art
-          </Text>
-        </Box>
-
-        {/* Synopsis */}
-        <Box>
-          <Text fontSize="sm" fontWeight="bold" color="neutral" mb={2}>
-            Personal Synopsis & Memory
-          </Text>
-          <Box bg="neutralSoft" p={4} borderRadius="xl" position="relative">
-            <Textarea
-              placeholder="A magical coming-of-age journey filled with spirits, warmth, and nostalgia."
-              variant="unstyled"
-              value={synopsis}
-              onChange={(e) => setSynopsis(e.target.value)}
-              color="neutral"
-              fontSize="sm"
-              bg="neutralSoft"
-              rows={3}
-              resize="none"
-            />
-            <Text
-              position="absolute"
-              bottom={3}
-              right={4}
-              fontSize="xs"
-              color="neutralMuted"
-            >
-              {synopsis.length} / 280
-            </Text>
-          </Box>
-        </Box>
-      </VStack>
-
-      {/* ==========================================
-          PART 2: WATCH STATUS & RATING
-          ========================================== */}
-
-      <Box mb={8}>
-        <Text fontSize="sm" fontWeight="bold" color="neutral" mb={3}>
-          Watch Status
-        </Text>
-
-        {/* Status Toggle */}
-        <Flex bg="white" p={1} gap={2} mb={4}>
-          <Flex
-            flex={1}
-            direction="column"
-            align="center"
-            py={3}
-            bg={watchStatus === "Watched" ? "primary" : "neutralSoft"}
-            color={watchStatus === "Watched" ? "white" : "neutralMuted"}
-            borderRadius="xl"
+            color="neutralMuted"
             cursor="pointer"
-            onClick={() => setWatchStatus("Watched")}
+            transition="all 0.2s"
+            _hover={{ bg: "neutralBorder", color: "neutral" }}
+            onClick={() => navigate(-1)}
           >
-            <CheckCircle2 size={20} mb={1} />
-            <Text fontSize="sm" fontWeight="bold">
-              Watched
-            </Text>
-          </Flex>
-          <Flex
-            flex={1}
-            direction="column"
-            align="center"
-            py={3}
-            bg={watchStatus === "Wishlist" ? "primary" : "neutralSoft"}
-            color={watchStatus === "Wishlist" ? "white" : "neutralMuted"}
-            borderRadius="xl"
-            cursor="pointer"
-            onClick={() => setWatchStatus("Wishlist")}
-          >
-            <Bookmark size={20} mb={1} />
-            <Text fontSize="sm" fontWeight="bold">
-              Wishlist
-            </Text>
-          </Flex>
-          <Flex
-            flex={1}
-            direction="column"
-            align="center"
-            py={3}
-            bg={watchStatus === "Scheduled" ? "primary" : "neutralSoft"}
-            color={watchStatus === "Scheduled" ? "white" : "neutralMuted"}
-            borderRadius="xl"
-            cursor="pointer"
-            onClick={() => setWatchStatus("Scheduled")}
-          >
-            <CalendarClock size={20} mb={1} />
-            <Text fontSize="sm" fontWeight="bold">
-              Scheduled
-            </Text>
+            <X size={18} color="currentColor" />
           </Flex>
         </Flex>
 
-        {/* Watched Details Card */}
-        {watchStatus === "Watched" && (
-          <Box bg="neutralSoft" borderRadius="2xl" p={5}>
-            {/* Date Picker */}
-            <Flex justify="space-between" align="center" mb={2}>
-              <Text fontSize="sm" fontWeight="bold" color="neutral">
-                When did you watch it?{" "}
-                <Text as="span" color="primary">
-                  *
-                </Text>
-              </Text>
-            </Flex>
-            <Flex
-              // bg="white"
-              justifyContent={"center"}
-              borderRadius="xl"
-              align="center"
-              justify="space-between"
-              mb={6}
-            >
-              <DatePicker.Root maxWidth="20rem">
-                <DatePicker.Label>Select date</DatePicker.Label>
-                <DatePicker.Control>
-                  <DatePicker.Input color="neutralMuted" />
-                  <DatePicker.IndicatorGroup>
-                    <DatePicker.Trigger
-                      _hover={{ color: "grey", cursor: "pointer" }}
-                    >
-                      <Calendar size={16} />
-                    </DatePicker.Trigger>
-                  </DatePicker.IndicatorGroup>
-                </DatePicker.Control>
-                <Portal>
-                  <DatePicker.Positioner>
-                    <DatePicker.Content>
-                      <DatePicker.View view="day">
-                        <DatePicker.Header />
-                        <DatePicker.DayTable />
-                      </DatePicker.View>
-                      <DatePicker.View view="month">
-                        <DatePicker.Header />
-                        <DatePicker.MonthTable />
-                      </DatePicker.View>
-                      <DatePicker.View view="year">
-                        <DatePicker.Header />
-                        <DatePicker.YearTable />
-                      </DatePicker.View>
-                    </DatePicker.Content>
-                  </DatePicker.Positioner>
-                </Portal>
-              </DatePicker.Root>
-            </Flex>
-
-            {/* Rating */}
-            <Flex justify="space-between" align="center" mb={3}>
-              <Text fontSize="sm" fontWeight="bold" color="neutral">
-                Personal Rating{" "}
-                <Text as="span" color="primary">
-                  *
-                </Text>
-              </Text>
-              <CustomBadge variant="secondary">
-                <Text fontSize="xs">🍿 </Text>{" "}
-                <Text fontSize="xs" fontWeight="bold" color="neutral">
-                  {rating.toFixed(1)} / 10
-                </Text>
-              </CustomBadge>
-            </Flex>
-
-            {/* Rating Stars & Title */}
-            <Flex justify="space-between" align="center" mb={5}>
-              <Flex align="center" gap={2}>
-                <Text fontSize="lg">🏆</Text>
-                <Text
-                  fontSize="md"
-                  fontWeight="bold"
-                  color="primary"
-                  lineHeight="1.1"
-                >
-                  Masterpiece
-                  <br />
-                  Popcorn!
-                </Text>
-              </Flex>
-              <Flex gap={1} color="secondary">
-                {[1, 2, 3, 4].map((star) => (
-                  <Star key={star} size={20} fill="currentColor" />
-                ))}
-                {/* Simulated half/empty star for 9.5 */}
-                <Star size={20} />
-              </Flex>
-            </Flex>
-
-            {/* Pure HTML Range input styled to match the maroon slider perfectly */}
-            <input
-              type="range"
-              min="0"
-              max="10"
-              step="0.5"
-              value={rating}
-              onChange={(e) => setRating(parseFloat(e.target.value))}
-              style={{
-                width: "100%",
-                accentColor: "#881938",
-                height: "6px",
-                borderRadius: "full",
-                cursor: "pointer",
-              }}
-            />
-            <Flex
-              justify="space-between"
-              mt={2}
-              color="neutralMuted"
-              fontSize="xs"
-            >
-              <Text>0 (Burnt)</Text>
-              <Text>5.0</Text>
-              <Text>10 (Golden Sweet)</Text>
-            </Flex>
-
-            <Flex align="flex-start" gap={2} mt={5}>
-              <Lock size={14} color="#73778D" style={{ marginTop: "4px" }} />
-              <Text fontSize="xs" fontStyle="italic" color="neutralMuted">
-                Owner rating only — your authentic personal score
-              </Text>
-            </Flex>
+        {/* Global Error Banner */}
+        {errors.form && (
+          <Box
+            bg="primarySoft"
+            color="primary"
+            p={3}
+            borderRadius="xl"
+            mb={4}
+            fontSize="xs"
+            fontWeight="bold"
+            border="1px solid"
+            borderColor="status.error"
+          >
+            {errors.form}
           </Box>
         )}
-      </Box>
 
-      {/* ==========================================
-          PART 3: MOOD STICKERS & SUBMIT
-          ========================================== */}
+        {/* ========================================================
+            2. MAIN FORM CARD
+            ======================================================== */}
+        <Box
+          as="form"
+          onSubmit={handleSubmit}
+          bg="white"
+          borderRadius="3xl"
+          p={5}
+          pt={0}
+          border="1px solid"
+          borderColor="neutralBorder"
+          boxShadow="0 4px 20px rgba(0, 0, 0, 0.02)"
+          position="relative"
+          overflow="hidden"
+        >
+          {/* Top Notch Brand Accent */}
+          <Box
+            w="80px"
+            h="5px"
+            bg="secondary"
+            borderBottomRadius="md"
+            mx="auto"
+            mb={5}
+          />
 
-      <Box mb={8}>
-        <Flex justify="space-between" align="center" mb={4}>
-          <Text fontSize="sm" fontWeight="bold" color="neutral">
-            Cinema Mood Stickers
-          </Text>
-          <Text fontSize="xs" color="primary">
-            Tap to tag
-          </Text>
-        </Flex>
+          <VStack gap={5} align="stretch">
+            {/* FORMAT TYPE SELECTOR */}
+            <Box>
+              <Flex justify="space-between" align="center" mb={1.5}>
+                <Text
+                  fontFamily="body"
+                  fontSize="xs"
+                  fontWeight="semibold"
+                  color="neutral"
+                >
+                  Content Format
+                </Text>
+                <CustomBadge variant="ratings" fontSize="2xs" px={2} py={0.2}>
+                  Required
+                </CustomBadge>
+              </Flex>
 
-        {/* Stickers Wrap */}
-        <Flex wrap="wrap" gap={3} mb={6}>
-          {moods.map((mood) => {
-            const isSelected = selectedMoods.includes(mood.label);
-            return (
-              <Flex
-                key={mood.label}
-                bg={isSelected ? mood.bg : "white"}
-                color={isSelected ? mood.color : "neutral"}
-                border={isSelected ? "1px solid transparent" : "1px solid"}
-                borderColor="border.muted"
-                px={4}
-                py={2}
-                borderRadius="full"
-                align="center"
-                gap={2}
-                cursor="pointer"
-                onClick={() => toggleMood(mood.label)}
-                transition="all 0.2s"
-              >
-                <Text fontSize="sm">{mood.emoji}</Text>
-                <Text fontSize="sm" fontWeight={isSelected ? "bold" : "medium"}>
-                  {mood.label}
+              <Flex bg="neutralSoft" p={1} borderRadius="2xl" gap={1}>
+                <Flex
+                  flex={1}
+                  py={2.5}
+                  bg={type === "Movie" ? "white" : "transparent"}
+                  color={type === "Movie" ? "primary" : "neutralMuted"}
+                  borderRadius="xl"
+                  align="center"
+                  justify="center"
+                  gap={2}
+                  cursor="pointer"
+                  boxShadow={type === "Movie" ? "sm" : "none"}
+                  onClick={() => setType("Movie")}
+                  transition="all 0.2s"
+                >
+                  <Clapperboard size={16} />
+                  <Text fontFamily="body" fontWeight="bold" fontSize="xs">
+                    Movie
+                  </Text>
+                </Flex>
+
+                <Flex
+                  flex={1}
+                  py={2.5}
+                  bg={type === "Series" ? "white" : "transparent"}
+                  color={type === "Series" ? "primary" : "neutralMuted"}
+                  borderRadius="xl"
+                  align="center"
+                  justify="center"
+                  gap={2}
+                  cursor="pointer"
+                  boxShadow={type === "Series" ? "sm" : "none"}
+                  onClick={() => setType("Series")}
+                  transition="all 0.2s"
+                >
+                  <Tv size={16} />
+                  <Text fontFamily="body" fontWeight="bold" fontSize="xs">
+                    Web Series
+                  </Text>
+                </Flex>
+              </Flex>
+            </Box>
+
+            {/* TITLE FIELD */}
+            <Box>
+              <Flex justify="space-between" align="center" mb={1.5}>
+                <Text
+                  fontFamily="body"
+                  fontSize="xs"
+                  fontWeight="semibold"
+                  color="neutral"
+                >
+                  Title{" "}
+                  <Text as="span" color="primary">
+                    *
+                  </Text>
+                </Text>
+                <Text fontFamily="body" fontSize="2xs" color="neutralMuted">
+                  Case-sensitive match
                 </Text>
               </Flex>
-            );
-          })}
-        </Flex>
 
-        <Box borderBottom="1px solid" borderColor="neutralMuted/25" mb={6} />
-
-        {/* Action Buttons */}
-        <VStack gap={3}>
-          <CustomButton
-            variant="primary"
-            onClick={() => console.log("Saved!")}
-            leftElement={
-              <Flex bg="white" color="primary" borderRadius="full" p={0.5}>
-                <Star size={14} fill="currentColor" />
+              <Flex
+                bg="neutralSoft"
+                px={3.5}
+                py={3}
+                borderRadius="2xl"
+                align="center"
+                gap={2.5}
+                border="1px solid"
+                borderColor={errors.title ? "status.error" : "transparent"}
+                _focusWithin={{
+                  borderColor: "brand.focusRing",
+                  bg: "white",
+                }}
+              >
+                <Box color="neutralMuted">
+                  <Clapperboard size={18} color="currentColor" />
+                </Box>
+                <Input
+                  variant="unstyled"
+                  placeholder="e.g. Spirited Away, Past Lives..."
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    if (errors.title)
+                      setErrors((prev) => ({ ...prev, title: null }));
+                  }}
+                  fontFamily="body"
+                  fontSize="xs"
+                  fontWeight="medium"
+                  color="neutral"
+                  p={0}
+                  bg="transparent"
+                  h="auto"
+                  _placeholder={{ color: "fg.subtle" }}
+                />
               </Flex>
-            }
-            rightElement="✨"
-          >
-            <Text fontWeight="bold" fontSize="md">
-              Save to My Collection
-            </Text>
-          </CustomButton>
+              {errors.title && (
+                <Text
+                  fontFamily="body"
+                  fontSize="2xs"
+                  color="status.error"
+                  mt={1}
+                >
+                  {errors.title}
+                </Text>
+              )}
+            </Box>
 
-          <CustomButton
-            onClick={() => {
-              navigate(-1);
-            }}
-            variant="neutral"
-          >
-            Cancel
-          </CustomButton>
-        </VStack>
+            {/* POSTER URL & INSTANT PREVIEW */}
+            <Box>
+              <Flex justify="space-between" align="center" mb={1.5}>
+                <Text
+                  fontFamily="body"
+                  fontSize="xs"
+                  fontWeight="semibold"
+                  color="neutral"
+                >
+                  Poster Artwork URL
+                </Text>
+                <CustomBadge variant="date" fontSize="2xs" px={2} py={0.2}>
+                  Optional
+                </CustomBadge>
+              </Flex>
+
+              <Flex gap={2.5} align="center">
+                <Flex
+                  flex={1}
+                  bg="neutralSoft"
+                  px={3.5}
+                  py={2.5}
+                  borderRadius="2xl"
+                  align="center"
+                  gap={2.5}
+                  border="1px solid"
+                  borderColor="transparent"
+                  _focusWithin={{ borderColor: "brand.focusRing", bg: "white" }}
+                >
+                  <Box color="neutralMuted">
+                    <LinkIcon size={16} color="currentColor" />
+                  </Box>
+                  <Input
+                    variant="unstyled"
+                    placeholder="https://images.unsplash.com/..."
+                    value={image}
+                    onChange={(e) => setImage(e.target.value)}
+                    fontFamily="body"
+                    fontSize="xs"
+                    color="neutral"
+                     bg="transparent"
+                    p={0}
+                    h="auto"
+                    _placeholder={{ color: "fg.subtle" }}
+                  />
+                </Flex>
+
+                {/* Instant Dynamic Thumbnail */}
+                <Box
+                  w="44px"
+                  h="44px"
+                  borderRadius="xl"
+                  bg="neutralSoft"
+                  overflow="hidden"
+                  border="1px solid"
+                  borderColor="neutralBorder"
+                  flexShrink={0}
+                  position="relative"
+                >
+                  {image ? (
+                    <Image
+                      src={image}
+                      alt="Preview"
+                      w="full"
+                      h="full"
+                      objectFit="cover"
+                      fallback={
+                        <Flex
+                          w="full"
+                          h="full"
+                          align="center"
+                          justify="center"
+                          color="neutralMuted"
+                        >
+                          <ImageIcon size={18} />
+                        </Flex>
+                      }
+                    />
+                  ) : (
+                    <Flex
+                      w="full"
+                      h="full"
+                      align="center"
+                      justify="center"
+                      color="neutralMuted"
+                    >
+                      <ImageIcon size={18} />
+                    </Flex>
+                  )}
+                </Box>
+              </Flex>
+            </Box>
+
+            {/* ========================================================
+                3. WATCH STATUS SELECTION & CONDITIONAL FIELDS
+                ======================================================== */}
+            <Box pt={1}>
+              <Flex justify="space-between" align="center" mb={2}>
+                <Text
+                  fontFamily="body"
+                  fontSize="xs"
+                  fontWeight="semibold"
+                  color="neutral"
+                >
+                  Watch Status{" "}
+                  <Text as="span" color="primary">
+                    *
+                  </Text>
+                </Text>
+                {/* <Text fontFamily="body" fontSize="2xs" color="neutralMuted">
+                  Controls diary rating & dates
+                </Text> */}
+              </Flex>
+
+              <SimpleGrid columns={3} gap={2} mb={3}>
+                {/* WATCHED */}
+                <Flex
+                  direction="column"
+                  align="center"
+                  justify="center"
+                  py={2.5}
+                  borderRadius="2xl"
+                  cursor="pointer"
+                  transition="all 0.2s"
+                  bg={status === "Watched" ? "primary" : "neutralSoft"}
+                  color={status === "Watched" ? "white" : "neutral"}
+                  onClick={() => setStatus("Watched")}
+                >
+                  <CheckCircle2 size={16} />
+                  <Text
+                    fontFamily="body"
+                    fontSize="2xs"
+                    fontWeight="bold"
+                    mt={1}
+                  >
+                    Watched
+                  </Text>
+                </Flex>
+
+                {/* WISHLIST */}
+                <Flex
+                  direction="column"
+                  align="center"
+                  justify="center"
+                  py={2.5}
+                  borderRadius="2xl"
+                  cursor="pointer"
+                  transition="all 0.2s"
+                  bg={status === "Wishlist" ? "primary" : "neutralSoft"}
+                  color={status === "Wishlist" ? "white" : "neutral"}
+                  onClick={() => setStatus("Wishlist")}
+                >
+                  <Bookmark size={16} />
+                  <Text
+                    fontFamily="body"
+                    fontSize="2xs"
+                    fontWeight="bold"
+                    mt={1}
+                  >
+                    Wishlist
+                  </Text>
+                </Flex>
+
+                {/* SCHEDULED */}
+                <Flex
+                  direction="column"
+                  align="center"
+                  justify="center"
+                  py={2.5}
+                  borderRadius="2xl"
+                  cursor="pointer"
+                  transition="all 0.2s"
+                  bg={status === "Scheduled" ? "primary" : "neutralSoft"}
+                  color={status === "Scheduled" ? "white" : "neutral"}
+                  onClick={() => setStatus("Scheduled")}
+                >
+                  <CalendarClock size={16} />
+                  <Text
+                    fontFamily="body"
+                    fontSize="2xs"
+                    fontWeight="bold"
+                    mt={1}
+                  >
+                    Scheduled
+                  </Text>
+                </Flex>
+              </SimpleGrid>
+
+              {/* A. CONDITIONAL: WATCHED CARD (Rating & Date) */}
+              {status === "Watched" && (
+                <Box
+                  bg="neutralSoft"
+                  borderRadius="2xl"
+                  p={4}
+                  border="1px solid"
+                  borderColor="neutralBorder"
+                  animation="fadeIn 0.2s ease-out"
+                >
+                  {/* Watched Date */}
+                  <Box mb={4}>
+                    <Flex justify="space-between" align="center" mb={1.5}>
+                      <Text
+                        fontFamily="body"
+                        fontSize="xs"
+                        fontWeight="semibold"
+                        color="neutral"
+                      >
+                        When did you watch it?
+                      </Text>
+                      <Text
+                        fontFamily="body"
+                        fontSize="2xs"
+                        color="neutralMuted"
+                      >
+                        Defaults to Today
+                      </Text>
+                    </Flex>
+                    <Flex
+                      bg="white"
+                      px={3}
+                      py={2}
+                      borderRadius="xl"
+                      align="center"
+                      justify="space-between"
+                      border="1px solid"
+                      borderColor="neutralBorder"
+                    >
+                      <Input
+                        type="date"
+                        value={watchedDate}
+                        bg="transparent"
+                        onChange={(e) => setWatchedDate(e.target.value)}
+                        variant="unstyled"
+                        fontFamily="body"
+                        fontSize="xs"
+                        fontWeight="semibold"
+                        color="neutral"
+                        p={0}
+                        h="auto"
+                      />
+                      <Calendar size={15} color="#73778D" />
+                    </Flex>
+                  </Box>
+
+                  {/* Rating Slider & Score Pill */}
+                  <Box>
+                    <Flex justify="space-between" align="center" mb={2}>
+                      <Text
+                        fontFamily="body"
+                        fontSize="xs"
+                        fontWeight="semibold"
+                        color="neutral"
+                      >
+                        Personal Popcorn Rating
+                      </Text>
+                      <CustomBadge variant="secondary" px={2.5} py={0.5}>
+                        🍿 {Number(rating).toFixed(1)} / 10
+                      </CustomBadge>
+                    </Flex>
+
+                    {/* Tier Title & Stars */}
+                    <Flex justify="space-between" align="center" mb={3}>
+                      <Flex align="center" gap={1.5}>
+                        <Text fontSize="md">{getScoreMeta(rating).emoji}</Text>
+                        <Text
+                          fontFamily="body"
+                          fontSize="xs"
+                          fontWeight="black"
+                          color="primary"
+                        >
+                          {getScoreMeta(rating).title}
+                        </Text>
+                      </Flex>
+                      <Flex gap={0.5} color="secondary">
+                        {[1, 2, 3, 4, 5].map((idx) => (
+                          <Star
+                            key={idx}
+                            size={16}
+                            fill={rating >= idx * 2 ? "currentColor" : "none"}
+                            color="currentColor"
+                          />
+                        ))}
+                      </Flex>
+                    </Flex>
+
+                    {/* Smooth Range Slider */}
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      step="0.5"
+                      value={rating}
+                      onChange={(e) => setRating(parseFloat(e.target.value))}
+                      style={{
+                        width: "100%",
+                        accentColor: "#881938",
+                        height: "6px",
+                        borderRadius: "full",
+                        cursor: "pointer",
+                      }}
+                    />
+
+                    <Flex
+                      justify="space-between"
+                      mt={1.5}
+                      fontSize="3xs"
+                      color="neutralMuted"
+                    >
+                      <Text fontSize={"sm"}>0 (Burnt)</Text>
+                      <Text fontSize={"sm"}>5.0</Text>
+                      <Text fontSize={"sm"}>10 (Golden Sweet)</Text>
+                    </Flex>
+
+                    <Flex align="center" gap={1.5} mt={3} color="neutralMuted">
+                      <Lock size={12} color="currentColor" />
+                      <Text fontFamily="body" fontSize="2xs" fontStyle="italic">
+                        Owner rating only — saved to your personal watch
+                        statistics
+                      </Text>
+                    </Flex>
+                  </Box>
+                </Box>
+              )}
+
+              {/* B. CONDITIONAL: SCHEDULED DATE PICKER */}
+              {status === "Scheduled" && (
+                <Box
+                  bg="neutralSoft"
+                  borderRadius="2xl"
+                  p={4}
+                  border="1px solid"
+                  borderColor="neutralBorder"
+                >
+                  <Flex justify="space-between" align="center" mb={1.5}>
+                    <Text
+                      fontFamily="body"
+                      fontSize="xs"
+                      fontWeight="semibold"
+                      color="neutral"
+                    >
+                      Target Watch Date{" "}
+                      <Text as="span" color="primary">
+                        *
+                      </Text>
+                    </Text>
+                    <CustomBadge
+                      variant="ratings"
+                      fontSize="2xs"
+                      px={2}
+                      py={0.2}
+                    >
+                      Required
+                    </CustomBadge>
+                  </Flex>
+
+                  <Flex
+                    bg="white"
+                    px={3}
+                    py={2.5}
+                    borderRadius="xl"
+                    align="center"
+                    justify="space-between"
+                    border="1px solid"
+                    borderColor={
+                      errors.scheduledDate ? "status.error" : "neutralBorder"
+                    }
+                  >
+                    <Input
+                      type="datetime-local"
+                      bg="transparent"
+                      value={scheduledDate}
+                      onChange={(e) => {
+                        setScheduledDate(e.target.value);
+                        if (errors.scheduledDate) {
+                          setErrors((prev) => ({
+                            ...prev,
+                            scheduledDate: null,
+                          }));
+                        }
+                      }}
+                      variant="unstyled"
+                      fontFamily="body"
+                      fontSize="xs"
+                      fontWeight="semibold"
+                      color="neutral"
+                      p={0}
+                      h="auto"
+                    />
+                    <CalendarClock size={16} color="#73778D" />
+                  </Flex>
+                  {errors.scheduledDate && (
+                    <Text
+                      fontFamily="body"
+                      fontSize="2xs"
+                      color="status.error"
+                      mt={1}
+                    >
+                      {errors.scheduledDate}
+                    </Text>
+                  )}
+                </Box>
+              )}
+
+              {/* C. CONDITIONAL: WISHLIST INFO NOTE */}
+              {status === "Wishlist" && (
+                <Flex
+                  bg="tertiarySoft"
+                  borderRadius="2xl"
+                  p={3.5}
+                  align="center"
+                  gap={2.5}
+                >
+                  <Box color="tertiary" flexShrink={0}>
+                    <Info size={16} color="currentColor" />
+                  </Box>
+                  <Text
+                    fontFamily="body"
+                    fontSize="2xs"
+                    color="neutral"
+                    lineHeight="tall"
+                  >
+                    Saved to your wishlist! Ratings and watch dates will unlock
+                    once marked as watched.
+                  </Text>
+                </Flex>
+              )}
+            </Box>
+
+            {/* DESCRIPTION & CINEMA SYNOPSIS */}
+            <Box>
+              <Flex justify="space-between" align="center" mb={1.5}>
+                <Text
+                  fontFamily="body"
+                  fontSize="xs"
+                  fontWeight="semibold"
+                  color="neutral"
+                >
+                  Personal Synopsis & Memory
+                </Text>
+                <CustomBadge variant="date" fontSize="2xs" px={2} py={0.2}>
+                  Optional
+                </CustomBadge>
+              </Flex>
+
+              <Box
+                bg="neutralSoft"
+                p={3.5}
+                borderRadius="2xl"
+                position="relative"
+                border="1px solid"
+                borderColor="transparent"
+                _focusWithin={{ borderColor: "brand.focusRing", bg: "white" }}
+              >
+                <Textarea
+                  placeholder="The coziest comfort watch with tea and fluffy blankets..."
+                  variant="unstyled"
+                  bg='transparent'
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value.slice(0, 280))}
+                  fontFamily="body"
+                  fontSize="xs"
+                  color="neutral"
+                  rows={3}
+                  resize="none"
+                  p={0}
+                  _placeholder={{ color: "fg.subtle" }}
+                />
+                <Text
+                  position="absolute"
+                  bottom={2}
+                  right={3}
+                  fontFamily="body"
+                  fontSize="4xs"
+                  color="neutralMuted"
+                >
+                  {description.length} / 280
+                </Text>
+              </Box>
+            </Box>
+
+            {/* MOOD STICKER CHIPS */}
+            <Box>
+              <Flex justify="space-between" align="center" mb={2}>
+                <Text
+                  fontFamily="body"
+                  fontSize="xs"
+                  fontWeight="bold"
+                  color="neutral"
+                >
+                  Cinema Mood Stickers
+                </Text>
+                <Text fontFamily="body" fontSize="2xs" color="primary">
+                  Tap to add to notes
+                </Text>
+              </Flex>
+
+              <Flex wrap="wrap" gap={2}>
+                {moodTags.map((m) => {
+                  const isSelected = selectedMoods.includes(m.label);
+                  return (
+                    <Flex
+                      key={m.label}
+                      bg={isSelected ? m.bg : "white"}
+                      color={isSelected ? m.color : "neutral"}
+                      border="1px solid"
+                      borderColor={isSelected ? "transparent" : "neutralBorder"}
+                      px={3}
+                      py={1}
+                      borderRadius="full"
+                      align="center"
+                      gap={1.5}
+                      cursor="pointer"
+                      onClick={() => handleMoodClick(m)}
+                      transition="all 0.2s"
+                      boxShadow={isSelected ? "xs" : "none"}
+                    >
+                      <Text fontSize="xs">{m.emoji}</Text>
+                      <Text fontFamily="body" fontSize="2xs" fontWeight="bold">
+                        {m.label}
+                      </Text>
+                    </Flex>
+                  );
+                })}
+              </Flex>
+            </Box>
+
+            {/* ACTION BUTTONS */}
+            <VStack gap={2.5} pt={2}>
+              <CustomButton
+                type="submit"
+                variant="primary"
+                fontFamily="body"
+                disabled={isSubmitting}
+                leftElement={<Sparkles size={16} color="currentColor" />}
+                rightElement="✨"
+              >
+                {isSubmitting
+                  ? "Saving to Collection..."
+                  : "Save to My Collection"}
+              </CustomButton>
+
+              <CustomButton
+                variant="neutral"
+                fontFamily="body"
+                onClick={() => navigate(-1)}
+              >
+                Cancel
+              </CustomButton>
+            </VStack>
+          </VStack>
+        </Box>
       </Box>
-      <Box w="100%" h="10vh"></Box>
     </Box>
   );
 }
