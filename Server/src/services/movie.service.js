@@ -214,6 +214,27 @@ export const updateMovie = async (movieId, userId, payload) => {
 
   assertMovieOwner(movie, userId);
 
+  // Check for duplicate title if title or type is being changed
+  const nextTitle =
+    payload.title !== undefined ? payload.title.trim() : movie.title;
+  const nextType = payload.type !== undefined ? payload.type : movie.type;
+
+  if (payload.title !== undefined || payload.type !== undefined) {
+    const duplicate = await Movie.findOne({
+      _id: { $ne: movie._id },
+      owner: userId,
+      type: nextType,
+      title: { $regex: new RegExp(`^${escapeRegex(nextTitle)}$`, "i") },
+    });
+
+    if (duplicate) {
+      throw new ApiError({
+        statusCode: HTTP_STATUS.CONFLICT,
+        message: "You have already added this movie",
+        code: "DUPLICATE_MOVIE",
+      });
+    }
+  }
   const nextStatus =
     payload.status !== undefined ? payload.status : movie.status;
 
@@ -288,6 +309,15 @@ export const updateMovie = async (movieId, userId, payload) => {
 
   if (movie.status === MOVIE_STATUSES.WATCHED && !movie.watchedDate) {
     movie.watchedDate = new Date();
+  }
+
+  if (movie.status === MOVIE_STATUSES.WATCHED) {
+    if (!movie.watchedDate) {
+      movie.watchedDate = new Date();
+    }
+  } else {
+    // Clear rating if movie is moved back to wishlist or scheduled
+    movie.rating = null;
   }
 
   await movie.save();

@@ -8,7 +8,9 @@ export const createMovie = asyncHandler(async (req, res) => {
 
   res
     .status(HTTP_STATUS.CREATED)
-    .json(new ApiResponse(HTTP_STATUS.CREATED, "Movie created successfully", movie));
+    .json(
+      new ApiResponse(HTTP_STATUS.CREATED, "Movie created successfully", movie),
+    );
 });
 
 export const getMovies = asyncHandler(async (req, res) => {
@@ -16,7 +18,17 @@ export const getMovies = asyncHandler(async (req, res) => {
 
   res
     .status(HTTP_STATUS.OK)
-    .json(new ApiResponse(HTTP_STATUS.OK, "Movies fetched successfully", result));
+    .json(
+      new ApiResponse(HTTP_STATUS.OK, "Movies fetched successfully", result),
+    );
+});
+
+export const getMovieById = asyncHandler(async (req, res) => {
+  const movie = await movieService.getMovieById(req.params.id, req.user._id);
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(new ApiResponse(HTTP_STATUS.OK, "Movie fetched successfully", movie));
 });
 
 export const updateMovie = asyncHandler(async (req, res) => {
