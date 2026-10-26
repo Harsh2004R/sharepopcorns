@@ -45,6 +45,8 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
     new Date().toISOString().split("T")[0],
   );
   const [scheduledDate, setScheduledDate] = useState("");
+  const [customMood, setCustomMood] = useState("");
+  const [moodError, setMoodError] = useState("");
 
   // Validation & UI states
   const [errors, setErrors] = useState({});
@@ -63,23 +65,81 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
       bg: "secondarySoft",
       color: "secondaryDark",
     },
+    {
+      label: "Feel Good",
+      emoji: "😊",
+      bg: "secondarySoft",
+      color: "secondaryDark",
+    },
+    { label: "Mind Blowing", emoji: "🤯", bg: "primarySoft", color: "primary" },
+    { label: "Nostalgic", emoji: "🌅", bg: "tertiarySoft", color: "neutral" },
+    { label: "Dark", emoji: "🌑", bg: "primarySoft", color: "primary" },
+    {
+      label: "Adventurous",
+      emoji: "🚀",
+      bg: "secondarySoft",
+      color: "secondaryDark",
+    },
+    {
+      label: "Thought Provoking",
+      emoji: "💭",
+      bg: "tertiarySoft",
+      color: "neutral",
+    },
+    { label: "Heartwarming", emoji: "❤️", bg: "primarySoft", color: "primary" },
   ];
 
   const handleMoodClick = (mood) => {
-    setSelectedMoods((prev) =>
-      prev.includes(mood.label)
-        ? prev.filter((m) => m !== mood.label)
-        : [...prev, mood.label],
-    );
+    setMoodError("");
 
-    // Contextually append to description if not already present
-    if (!description.includes(mood.label)) {
-      setDescription((prev) =>
-        prev
-          ? `${prev} • ${mood.emoji} ${mood.label}`
-          : `${mood.emoji} ${mood.label}`,
+    setSelectedMoods((prev) => {
+      const existingIndex = prev.findIndex(
+        (item) => item.toLowerCase() === mood.label.toLowerCase(),
       );
+
+      // Deselect an existing mood, but keep at least one selected.
+      if (existingIndex !== -1) {
+        if (prev.length === 1) {
+          setMoodError("Please select at least one mood.");
+          return prev;
+        }
+
+        return prev.filter((_, index) => index !== existingIndex);
+      }
+
+      // Maximum of five moods.
+      if (prev.length >= 5) {
+        setMoodError("You can select a maximum of 5 moods.");
+        return prev;
+      }
+
+      return [...prev, mood.label];
+    });
+  };
+
+  const handleAddCustomMood = () => {
+    const newMood = customMood.trim();
+
+    if (!newMood) {
+      setMoodError("Please enter a mood.");
+      return;
     }
+
+    if (
+      selectedMoods.some((mood) => mood.toLowerCase() === newMood.toLowerCase())
+    ) {
+      setMoodError("This mood has already been selected.");
+      return;
+    }
+
+    if (selectedMoods.length >= 5) {
+      setMoodError("You can select a maximum of 5 moods.");
+      return;
+    }
+
+    setSelectedMoods((prev) => [...prev, newMood]);
+    setCustomMood("");
+    setMoodError("");
   };
 
   const getScoreMeta = (val) => {
@@ -96,6 +156,9 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
     }
     if (status === "Scheduled" && !scheduledDate) {
       newErrors.scheduledDate = "Please choose a planned watch date";
+    }
+    if (selectedMoods.length < 1 || selectedMoods.length > 5) {
+      newErrors.moodTags = "Please select between 1 and 5 moods.";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -115,6 +178,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
       image: image.trim() || null,
       status,
       rating: status === "Watched" ? Number(rating) : null,
+      moodTags: selectedMoods,
       watchedDate:
         status === "Watched"
           ? watchedDate
@@ -411,7 +475,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                     fontFamily="body"
                     fontSize="xs"
                     color="neutral"
-                     bg="transparent"
+                    bg="transparent"
                     p={0}
                     h="auto"
                     _placeholder={{ color: "fg.subtle" }}
@@ -827,7 +891,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                 <Textarea
                   placeholder="The coziest comfort watch with tea and fluffy blankets..."
                   variant="unstyled"
-                  bg='transparent'
+                  bg="transparent"
                   value={description}
                   onChange={(e) => setDescription(e.target.value.slice(0, 280))}
                   fontFamily="body"
@@ -852,6 +916,8 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
             </Box>
 
             {/* MOOD STICKER CHIPS */}
+
+            {/* CINEMA MOOD STICKERS */}
             <Box>
               <Flex justify="space-between" align="center" mb={2}>
                 <Text
@@ -862,14 +928,23 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                 >
                   Cinema Mood Stickers
                 </Text>
+
                 <Text fontFamily="body" fontSize="2xs" color="primary">
-                  Tap to add to notes
+                  {selectedMoods.length}/5 selected
                 </Text>
               </Flex>
 
+              <Text fontSize="2xs" color="neutralMuted" mb={3}>
+                Select at least 1 and up to 5 moods, or create your own.
+              </Text>
+
+              {/* PRESET MOODS */}
               <Flex wrap="wrap" gap={2}>
                 {moodTags.map((m) => {
-                  const isSelected = selectedMoods.includes(m.label);
+                  const isSelected = selectedMoods.some(
+                    (mood) => mood.toLowerCase() === m.label.toLowerCase(),
+                  );
+
                   return (
                     <Flex
                       key={m.label}
@@ -878,7 +953,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                       border="1px solid"
                       borderColor={isSelected ? "transparent" : "neutralBorder"}
                       px={3}
-                      py={1}
+                      py={1.5}
                       borderRadius="full"
                       align="center"
                       gap={1.5}
@@ -886,15 +961,136 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                       onClick={() => handleMoodClick(m)}
                       transition="all 0.2s"
                       boxShadow={isSelected ? "xs" : "none"}
+                      opacity={
+                        !isSelected && selectedMoods.length >= 5 ? 0.5 : 1
+                      }
                     >
                       <Text fontSize="xs">{m.emoji}</Text>
                       <Text fontFamily="body" fontSize="2xs" fontWeight="bold">
                         {m.label}
                       </Text>
+                      {isSelected && <CheckCircle2 size={12} />}
                     </Flex>
                   );
                 })}
               </Flex>
+
+              {/* CUSTOM MOOD INPUT */}
+              <Box mt={4}>
+                <Text
+                  fontFamily="body"
+                  fontSize="xs"
+                  fontWeight="semibold"
+                  color="neutral"
+                  mb={1.5}
+                >
+                  Create Your Own Mood
+                </Text>
+
+                <Flex gap={2}>
+                  <Input
+                    value={customMood}
+                    onChange={(e) => {
+                      setCustomMood(e.target.value);
+                      setMoodError("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddCustomMood();
+                      }
+                    }}
+                    placeholder="e.g. Mind-bending, Rainy Day..."
+                    bg="neutralSoft"
+                    border="1px solid"
+                    borderColor="neutralBorder"
+                    borderRadius="xl"
+                    fontSize="xs"
+                    disabled={selectedMoods.length >= 5}
+                    maxLength={40}
+                  />
+
+                  <CustomButton
+                    type="button"
+                    variant="primary"
+                    disabled={selectedMoods.length >= 5 || !customMood.trim()}
+                    onClick={handleAddCustomMood}
+                  >
+                    Add
+                  </CustomButton>
+                </Flex>
+              </Box>
+
+              {/* SELECTED CUSTOM AND PRESET MOODS */}
+              {selectedMoods.length > 0 && (
+                <Box mt={3}>
+                  <Text
+                    fontFamily="body"
+                    fontSize="2xs"
+                    fontWeight="semibold"
+                    color="neutralMuted"
+                    mb={2}
+                  >
+                    Your selected moods
+                  </Text>
+
+                  <Flex wrap="wrap" gap={2}>
+                    {selectedMoods.map((mood) => {
+                      const preset = moodTags.find(
+                        (m) => m.label.toLowerCase() === mood.toLowerCase(),
+                      );
+
+                      return (
+                        <Flex
+                          key={mood}
+                          align="center"
+                          gap={1.5}
+                          px={2.5}
+                          py={1}
+                          borderRadius="full"
+                          bg={preset ? preset.bg : "tertiarySoft"}
+                          color={preset ? preset.color : "neutral"}
+                          fontSize="2xs"
+                        >
+                          <Text>{preset?.emoji ?? "🎭"}</Text>
+                          <Text fontWeight="semibold">{mood}</Text>
+
+                          <Box
+                            as="span"
+                            cursor={
+                              selectedMoods.length > 1
+                                ? "pointer"
+                                : "not-allowed"
+                            }
+                            opacity={selectedMoods.length > 1 ? 1 : 0.4}
+                            onClick={() => {
+                              if (selectedMoods.length > 1) {
+                                setSelectedMoods((prev) =>
+                                  prev.filter((item) => item !== mood),
+                                );
+                                setMoodError("");
+                              }
+                            }}
+                          >
+                            <X size={12} />
+                          </Box>
+                        </Flex>
+                      );
+                    })}
+                  </Flex>
+                </Box>
+              )}
+
+              {(moodError || errors.moodTags) && (
+                <Text
+                  fontFamily="body"
+                  fontSize="2xs"
+                  color="status.error"
+                  mt={2}
+                >
+                  {moodError || errors.moodTags}
+                </Text>
+              )}
             </Box>
 
             {/* ACTION BUTTONS */}
