@@ -38,6 +38,10 @@ const movieSchema = new mongoose.Schema(
       default: null,
       trim: true,
     },
+    moodTags: {
+      type: [String],
+      default: [],
+    },
     status: {
       type: String,
       enum: {

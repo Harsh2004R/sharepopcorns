@@ -61,6 +61,43 @@ const parseRating = (value) => {
   return rating;
 };
 
+const parseMoodTags = (value) => {
+  if (!Array.isArray(value)) {
+    throw new ApiError({
+      statusCode: HTTP_STATUS.BAD_REQUEST,
+      message: "Mood tags must be an array",
+      code: "INVALID_MOOD_TAGS",
+    });
+  }
+
+  const tags = value.map((tag) => {
+    if (typeof tag !== "string" || !tag.trim()) {
+      throw new ApiError({
+        statusCode: HTTP_STATUS.BAD_REQUEST,
+        message: "Mood tags must be non-empty strings",
+        code: "INVALID_MOOD_TAGS",
+      });
+    }
+
+    return tag.trim();
+  });
+
+  // Remove duplicates without considering letter case.
+  const uniqueTags = [
+    ...new Map(tags.map((tag) => [tag.toLowerCase(), tag])).values(),
+  ];
+
+  if (uniqueTags.length < 1 || uniqueTags.length > 5) {
+    throw new ApiError({
+      statusCode: HTTP_STATUS.BAD_REQUEST,
+      message: "Select between 1 and 5 mood tags",
+      code: "INVALID_MOOD_TAG_COUNT",
+    });
+  }
+
+  return uniqueTags;
+};
+
 const parsePagination = (query) => {
   const page = Math.max(
     Number.parseInt(query.page, 10) || PAGINATION.DEFAULT_PAGE,
@@ -84,6 +121,7 @@ export const createMovie = async (userId, payload) => {
     rating,
     watchedDate,
     scheduledDate,
+    moodTags,
   } = payload;
 
   if (!type || !MOVIE_TYPE_VALUES.includes(type)) {
@@ -134,6 +172,7 @@ export const createMovie = async (userId, payload) => {
     description: typeof description === "string" ? description.trim() : "",
     image: typeof image === "string" && image.trim() ? image.trim() : null,
     status,
+    moodTags: parseMoodTags(moodTags),
     rating: status === MOVIE_STATUSES.WATCHED ? parsedRating : null,
     watchedDate:
       status === MOVIE_STATUSES.WATCHED
@@ -306,7 +345,9 @@ export const updateMovie = async (movieId, userId, payload) => {
       movie.rating = parseRating(payload.rating);
     }
   }
-
+  if (payload.moodTags !== undefined) {
+    movie.moodTags = parseMoodTags(payload.moodTags);
+  }
   if (movie.status === MOVIE_STATUSES.WATCHED && !movie.watchedDate) {
     movie.watchedDate = new Date();
   }
