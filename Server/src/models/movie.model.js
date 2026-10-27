@@ -40,7 +40,7 @@ const movieSchema = new mongoose.Schema(
     },
     moodTags: {
       type: [String],
-      default: [],
+      default: ["Cozy"],
     },
     status: {
       type: String,

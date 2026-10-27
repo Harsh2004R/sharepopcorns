@@ -5,6 +5,7 @@ import {
   registerUser,
   verifyEmail,
   loginUser,
+  logoutUser,
   resendVerification,
 } from "../controllers/user.controller.js";
 import { authLimiter, otpLimiter } from "../middlewares/rateLimiter.js";
@@ -26,5 +27,5 @@ router.post("/login", authLimiter, loginUser);
 
 router.post("/forgot-password", authLimiter, forgotPassword);
 router.post("/reset-password", authLimiter, resetPassword);
-
+router.post("/logout", logoutUser);
 export default router;

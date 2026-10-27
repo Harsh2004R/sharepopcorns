@@ -94,3 +94,12 @@ export const resetPassword = asyncHandler(async (req, res) => {
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, result.message, null));
 });
+
+export const logoutUser = asyncHandler(async (req, res) => {
+  const cookieOpts = getCookieOptions();
+  res
+    .status(HTTP_STATUS.OK)
+    .clearCookie("accessToken", cookieOpts)
+    .clearCookie("refreshToken", cookieOpts)
+    .json(new ApiResponse(HTTP_STATUS.OK, "Logged out successfully", null));
+});

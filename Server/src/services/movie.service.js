@@ -172,7 +172,10 @@ export const createMovie = async (userId, payload) => {
     description: typeof description === "string" ? description.trim() : "",
     image: typeof image === "string" && image.trim() ? image.trim() : null,
     status,
-    moodTags: parseMoodTags(moodTags),
+    // moodTags: parseMoodTags(moodTags),
+    moodTags: Array.isArray(payload.moodTags)
+      ? payload.moodTags.slice(0, 5)
+      : ["Cozy"],
     rating: status === MOVIE_STATUSES.WATCHED ? parsedRating : null,
     watchedDate:
       status === MOVIE_STATUSES.WATCHED
@@ -345,8 +348,11 @@ export const updateMovie = async (movieId, userId, payload) => {
       movie.rating = parseRating(payload.rating);
     }
   }
-  if (payload.moodTags !== undefined) {
-    movie.moodTags = parseMoodTags(payload.moodTags);
+  // if (payload.moodTags !== undefined) {
+  //   movie.moodTags = parseMoodTags(payload.moodTags);
+  // }
+  if (Array.isArray(payload.moodTags)) {
+    movie.moodTags = payload.moodTags.slice(0, 5);
   }
   if (movie.status === MOVIE_STATUSES.WATCHED && !movie.watchedDate) {
     movie.watchedDate = new Date();
