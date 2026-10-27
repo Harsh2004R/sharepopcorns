@@ -34,12 +34,12 @@ export const authApi = {
     return data;
   },
   getProfile: async () => {
-    const { data } = await apiClient.get("/users/profile");
+    const { data } = await apiClient.get("/user/profile");
     return data.data;
   },
   updateProfile: async (payload) => {
     // payload: { name, avatar }
-    const { data } = await apiClient.patch("/users/profile", payload);
+    const { data } = await apiClient.patch("/user/profile", payload);
     return data;
   },
   logout: async () => {

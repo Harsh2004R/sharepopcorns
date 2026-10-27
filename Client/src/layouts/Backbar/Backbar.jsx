@@ -11,10 +11,10 @@ const Backbar = ({ title }) => {
       justify="center"
       position="relative"
       px={0}
-      py={4}
+      py={3}
       w="full"
       bg="white"
-      boxShadow="0 0 15px rgba(0, 0, 0, 0.08)"
+      // boxShadow="0 0 15px rgba(0, 0, 0, 0.08)"
     >
       <IconButton
         aria-label="Go back"
