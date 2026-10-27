@@ -1,83 +1,71 @@
-// src/routes/privateRoutes.jsx
+// src/routes/PrivateRoutes.jsx
 import { lazy } from "react";
 import ProtectedRoute from "./ProtectedRoute.jsx";
-const Profile = lazy(() => import("../features/profile/pages/Profile.jsx"));
-const AddNewPlaylist = lazy(
-  () => import("../features/addNewPlaylist/pages/AddNewPlaylist.jsx"),
-);
-const PlaylistDetails = lazy(
-  () => import("../features/playlistDetails/pages/PlaylistDetails.jsx"),
+
+const PublicLayout = lazy(() => import("../layouts/PublicLayout.jsx"));
+const SimpleLayout = lazy(() => import("../layouts/SimpleLayout.jsx"));
+const AdminLayout = lazy(() => import("../layouts/AdminLayout.jsx"));
+
+const Home = lazy(() => import("../features/home/pages/Home.jsx"));
+const MyCollection = lazy(
+  () => import("../features/myCollection/pages/MyCollection.jsx"),
 );
 const MyPlaylist = lazy(
   () => import("../features/myPlaylist/pages/MyPlaylist.jsx"),
 );
-const MovieDetails = lazy(
-  () => import("../features/movieDetails/pages/MovieDetails.jsx"),
-);
+const Profile = lazy(() => import("../features/profile/pages/Profile.jsx"));
 const AddMovieOrWebSeries = lazy(
   () => import("../features/addMovieOrWebSeries/pages/AddMovieOrWebSeries.jsx"),
 );
-const PublicLayout = lazy(() => import("../layouts/PublicLayout.jsx"));
-const AdminLayout = lazy(() => import("../layouts/AdminLayout"));
+const MovieDetails = lazy(
+  () => import("../features/movieDetails/pages/MovieDetails.jsx"),
+);
+const AddNewPlaylist = lazy(
+  () => import("../features/addNewPlaylist/pages/AddNewPlaylist.jsx"),
+);
 const AdminDashboard = lazy(
   () => import("../features/admin/pages/AdminDashboard.jsx"),
 );
 
 export const privateRoutes = [
   // ==========================================
-  // 1. CUSTOMER ROUTES (Needs Auth, uses Public Header/Footer)
+  // 1. CUSTOMER & ADMIN ROUTES
   // ==========================================
   {
     element: <ProtectedRoute allowedRoles={["customer", "admin"]} />,
     children: [
+      // A. Primary Bottombar Tab Screens
       {
-        element: <PublicLayout />, // Re-using your existing layout!
+        element: <PublicLayout />,
         children: [
-          {
-            path: "/add",
-            element: <AddMovieOrWebSeries />,
-          },
-          {
-            path: "/content/details",
-            element: <MovieDetails />,
-          },
-          {
-            path: "/my-playlist",
-            element: <MyPlaylist />,
-          },
-          {
-            path: "/playlist/:id",
-            element: <PlaylistDetails />,
-          },
-          {
-            path: "/add-new/playlist/",
-            element: <AddNewPlaylist />,
-          },
-          {
-            path: "/profile",
-            element: <Profile />,
-          },
-          // You might want to move /order and /placed here if checkout requires login!
+          { path: "/", element: <Home /> },
+          { path: "/my-collection", element: <MyCollection /> },
+          { path: "/my-playlist", element: <MyPlaylist /> },
+          { path: "/profile", element: <Profile /> },
+        ],
+      },
+      // B. Focused Form & Detail Screens (Backbar only, no Bottombar clutter)
+      {
+        element: <SimpleLayout />,
+        children: [
+          { path: "/add", element: <AddMovieOrWebSeries /> },
+          { path: "/movies/:id", element: <MovieDetails /> },
+          { path: "/movies/:id/edit", element: <AddMovieOrWebSeries /> },
+          { path: "/add-new/playlist", element: <AddNewPlaylist /> },
         ],
       },
     ],
   },
 
   // ==========================================
-  //  ADMIN ROUTES (Needs Admin Auth)
+  // 2. ADMIN ROUTES
   // ==========================================
   {
     element: <ProtectedRoute allowedRoles={["admin"]} />,
     children: [
       {
-        element: <AdminLayout />, // Custom layout for superusers
-        children: [
-          {
-            path: "/admin/dashboard",
-            element: <AdminDashboard />,
-          },
-          // path: "/admin/users", etc...
-        ],
+        element: <AdminLayout />,
+        children: [{ path: "/admin/dashboard", element: <AdminDashboard /> }],
       },
     ],
   },

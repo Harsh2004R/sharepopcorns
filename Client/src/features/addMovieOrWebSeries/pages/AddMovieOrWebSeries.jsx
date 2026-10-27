@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/features/addMovieOrWebSeries/pages/AddMovieOrWebSeries.jsx
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Flex,
@@ -11,7 +12,6 @@ import {
 } from "@chakra-ui/react";
 import {
   X,
-  Ticket,
   Clapperboard,
   Tv,
   Link as LinkIcon,
@@ -25,21 +25,36 @@ import {
   Info,
   Image as ImageIcon,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { CustomBadge } from "../../../shared/components/CustomBadge";
 import { CustomButton } from "../../../shared/components/CustomButton";
+import {
+  useCreateMovieMutation,
+  useUpdateMovieMutation,
+  useMovieDetailQuery,
+} from "../../../hooks/useMovieQueries.js";
+import { useThrottledCallback } from "../../../hooks/usePerformance.js";
 
-export default function AddMovieOrWebSeries({ onSubmitMovie }) {
+export default function AddMovieOrWebSeries() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { id: editMovieId } = useParams();
+  const isEditMode = Boolean(editMovieId);
 
-  // ==========================================
-  // FORM STATES (Mapped to Mongoose Schema)
-  // ==========================================
-  const [type, setType] = useState("Movie"); // MOVIE_TYPE_VALUES
+  const { data: existingMovie } = useMovieDetailQuery(editMovieId);
+  const { mutate: createMovie, isPending: isCreating } =
+    useCreateMovieMutation();
+  const { mutate: updateMovie, isPending: isUpdating } =
+    useUpdateMovieMutation();
+  const isPending = isCreating || isUpdating;
+
+  const [type, setType] = useState("movie"); // "movie" | "series"
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState("");
-  const [status, setStatus] = useState("Watched"); // MOVIE_STATUS_VALUES
+  const [status, setStatus] = useState(
+    (location.state?.defaultStatus || "watched").toLowerCase(),
+  ); // "watched" | "wishlist" | "scheduled"
   const [rating, setRating] = useState(9.0);
   const [watchedDate, setWatchedDate] = useState(
     new Date().toISOString().split("T")[0],
@@ -47,13 +62,34 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
   const [scheduledDate, setScheduledDate] = useState("");
   const [customMood, setCustomMood] = useState("");
   const [moodError, setMoodError] = useState("");
-
-  // Validation & UI states
   const [errors, setErrors] = useState({});
   const [selectedMoods, setSelectedMoods] = useState(["Cozy"]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Preset Mood tags to quickly enrich the description
+  // Populate form when editing an existing movie
+  useEffect(() => {
+    if (isEditMode && existingMovie) {
+      setType(existingMovie.type || "movie");
+      setTitle(existingMovie.title || "");
+      setDescription(existingMovie.description || "");
+      setImage(existingMovie.image || "");
+      setStatus(existingMovie.status || "watched");
+      setRating(existingMovie.rating ?? 9.0);
+      if (existingMovie.watchedDate) {
+        setWatchedDate(
+          new Date(existingMovie.watchedDate).toISOString().split("T")[0],
+        );
+      }
+      if (existingMovie.scheduledDate) {
+        setScheduledDate(
+          new Date(existingMovie.scheduledDate).toISOString().slice(0, 16),
+        );
+      }
+      if (existingMovie.moodTags?.length > 0) {
+        setSelectedMoods(existingMovie.moodTags);
+      }
+    }
+  }, [isEditMode, existingMovie]);
+
   const moodTags = [
     { label: "Cozy", emoji: "✨", bg: "secondarySoft", color: "secondaryDark" },
     { label: "Tearjerker", emoji: "💧", bg: "primarySoft", color: "primary" },
@@ -91,52 +127,39 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
 
   const handleMoodClick = (mood) => {
     setMoodError("");
-
     setSelectedMoods((prev) => {
       const existingIndex = prev.findIndex(
         (item) => item.toLowerCase() === mood.label.toLowerCase(),
       );
-
-      // Deselect an existing mood, but keep at least one selected.
       if (existingIndex !== -1) {
         if (prev.length === 1) {
           setMoodError("Please select at least one mood.");
           return prev;
         }
-
         return prev.filter((_, index) => index !== existingIndex);
       }
-
-      // Maximum of five moods.
       if (prev.length >= 5) {
         setMoodError("You can select a maximum of 5 moods.");
         return prev;
       }
-
       return [...prev, mood.label];
     });
   };
 
   const handleAddCustomMood = () => {
     const newMood = customMood.trim();
-
     if (!newMood) {
       setMoodError("Please enter a mood.");
       return;
     }
-
-    if (
-      selectedMoods.some((mood) => mood.toLowerCase() === newMood.toLowerCase())
-    ) {
+    if (selectedMoods.some((m) => m.toLowerCase() === newMood.toLowerCase())) {
       setMoodError("This mood has already been selected.");
       return;
     }
-
     if (selectedMoods.length >= 5) {
       setMoodError("You can select a maximum of 5 moods.");
       return;
     }
-
     setSelectedMoods((prev) => [...prev, newMood]);
     setCustomMood("");
     setMoodError("");
@@ -154,7 +177,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
     if (!title.trim()) {
       newErrors.title = "Movie or Series title is required";
     }
-    if (status === "Scheduled" && !scheduledDate) {
+    if (status === "scheduled" && !scheduledDate) {
       newErrors.scheduledDate = "Please choose a planned watch date";
     }
     if (selectedMoods.length < 1 || selectedMoods.length > 5) {
@@ -164,47 +187,51 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
-
-    setIsSubmitting(true);
-
-    // Exact payload structured for movieService.createMovie
+  const submitMoviePayload = useThrottledCallback(() => {
     const payload = {
-      type,
+      type: type.toLowerCase(), // Matches backend MOVIE_TYPE_VALUES ("movie" | "series")
       title: title.trim(),
       description: description.trim(),
       image: image.trim() || null,
-      status,
-      rating: status === "Watched" ? Number(rating) : null,
+      status: status.toLowerCase(), // Matches backend MOVIE_STATUS_VALUES
+      rating: status === "watched" ? Number(rating) : null,
       moodTags: selectedMoods,
       watchedDate:
-        status === "Watched"
+        status === "watched"
           ? watchedDate
-            ? new Date(watchedDate)
-            : new Date()
+            ? new Date(watchedDate).toISOString()
+            : new Date().toISOString()
           : null,
       scheduledDate:
-        status === "Scheduled"
-          ? scheduledDate
-            ? new Date(scheduledDate)
-            : null
+        status === "scheduled" && scheduledDate
+          ? new Date(scheduledDate).toISOString()
           : null,
     };
 
-    try {
-      if (onSubmitMovie) {
-        await onSubmitMovie(payload);
-      } else {
-        console.log("Submitting Movie Payload:", payload);
-      }
-      navigate(-1);
-    } catch (err) {
-      setErrors({ form: err.message || "Failed to save title" });
-    } finally {
-      setIsSubmitting(false);
+    if (isEditMode) {
+      updateMovie(
+        { id: editMovieId, payload },
+        {
+          onSuccess: () =>
+            navigate(`/movies/${editMovieId}`, { replace: true }),
+        },
+      );
+    } else {
+      createMovie(payload, {
+        onSuccess: (res) => {
+          const newId = res?.data?._id;
+          navigate(newId ? `/movies/${newId}` : "/my-collection", {
+            replace: true,
+          });
+        },
+      });
     }
+  }, 1500);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (isPending || !validateForm()) return;
+    submitMoviePayload();
   };
 
   return (
@@ -215,76 +242,9 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
       fontFamily="body"
       px={4}
       pt={4}
-      pb={24}
+      pb={16}
     >
       <Box maxW="lg" mx="auto">
-        {/* ========================================================
-            1. TOP NAVIGATION HEADER
-            ======================================================== */}
-        <Flex justify="space-between" align="center" mb={4}>
-          <Flex align="center" gap={3}>
-            <Flex
-              w="42px"
-              h="42px"
-              bg="secondary"
-              borderRadius="2xl"
-              align="center"
-              justify="center"
-              color="secondaryDark"
-              boxShadow="0 4px 12px rgba(255, 209, 102, 0.3)"
-            >
-              <Ticket size={22} color="currentColor" />
-            </Flex>
-            <Box>
-              <Flex align="center" gap={1.5}>
-                <Text fontSize="2xl" fontWeight="extrabold" color="neutral">
-                  Log Cinema Memory
-                </Text>
-                <Text fontSize="md">🍿</Text>
-              </Flex>
-              <Text fontFamily="body" fontSize="2xs" color="neutralMuted">
-                Add to your permanent diary & shelves
-              </Text>
-            </Box>
-          </Flex>
-
-          <Flex
-            w="34px"
-            h="34px"
-            bg="neutralSoft"
-            borderRadius="full"
-            align="center"
-            justify="center"
-            color="neutralMuted"
-            cursor="pointer"
-            transition="all 0.2s"
-            _hover={{ bg: "neutralBorder", color: "neutral" }}
-            onClick={() => navigate(-1)}
-          >
-            <X size={18} color="currentColor" />
-          </Flex>
-        </Flex>
-
-        {/* Global Error Banner */}
-        {errors.form && (
-          <Box
-            bg="primarySoft"
-            color="primary"
-            p={3}
-            borderRadius="xl"
-            mb={4}
-            fontSize="xs"
-            fontWeight="bold"
-            border="1px solid"
-            borderColor="status.error"
-          >
-            {errors.form}
-          </Box>
-        )}
-
-        {/* ========================================================
-            2. MAIN FORM CARD
-            ======================================================== */}
         <Box
           as="form"
           onSubmit={handleSubmit}
@@ -298,7 +258,6 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
           position="relative"
           overflow="hidden"
         >
-          {/* Top Notch Brand Accent */}
           <Box
             w="80px"
             h="5px"
@@ -312,12 +271,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
             {/* FORMAT TYPE SELECTOR */}
             <Box>
               <Flex justify="space-between" align="center" mb={1.5}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="semibold"
-                  color="neutral"
-                >
+                <Text fontSize="xs" fontWeight="semibold" color="neutral">
                   Content Format
                 </Text>
                 <CustomBadge variant="ratings" fontSize="2xs" px={2} py={0.2}>
@@ -329,19 +283,19 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                 <Flex
                   flex={1}
                   py={2.5}
-                  bg={type === "Movie" ? "white" : "transparent"}
-                  color={type === "Movie" ? "primary" : "neutralMuted"}
+                  bg={type === "movie" ? "white" : "transparent"}
+                  color={type === "movie" ? "primary" : "neutralMuted"}
                   borderRadius="xl"
                   align="center"
                   justify="center"
                   gap={2}
                   cursor="pointer"
-                  boxShadow={type === "Movie" ? "sm" : "none"}
-                  onClick={() => setType("Movie")}
+                  boxShadow={type === "movie" ? "sm" : "none"}
+                  onClick={() => setType("movie")}
                   transition="all 0.2s"
                 >
                   <Clapperboard size={16} />
-                  <Text fontFamily="body" fontWeight="bold" fontSize="xs">
+                  <Text fontWeight="bold" fontSize="xs">
                     Movie
                   </Text>
                 </Flex>
@@ -349,19 +303,19 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                 <Flex
                   flex={1}
                   py={2.5}
-                  bg={type === "Series" ? "white" : "transparent"}
-                  color={type === "Series" ? "primary" : "neutralMuted"}
+                  bg={type === "series" ? "white" : "transparent"}
+                  color={type === "series" ? "primary" : "neutralMuted"}
                   borderRadius="xl"
                   align="center"
                   justify="center"
                   gap={2}
                   cursor="pointer"
-                  boxShadow={type === "Series" ? "sm" : "none"}
-                  onClick={() => setType("Series")}
+                  boxShadow={type === "series" ? "sm" : "none"}
+                  onClick={() => setType("series")}
                   transition="all 0.2s"
                 >
                   <Tv size={16} />
-                  <Text fontFamily="body" fontWeight="bold" fontSize="xs">
+                  <Text fontWeight="bold" fontSize="xs">
                     Web Series
                   </Text>
                 </Flex>
@@ -371,19 +325,11 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
             {/* TITLE FIELD */}
             <Box>
               <Flex justify="space-between" align="center" mb={1.5}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="semibold"
-                  color="neutral"
-                >
+                <Text fontSize="xs" fontWeight="semibold" color="neutral">
                   Title{" "}
                   <Text as="span" color="primary">
                     *
                   </Text>
-                </Text>
-                <Text fontFamily="body" fontSize="2xs" color="neutralMuted">
-                  Case-sensitive match
                 </Text>
               </Flex>
 
@@ -396,10 +342,6 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                 gap={2.5}
                 border="1px solid"
                 borderColor={errors.title ? "status.error" : "transparent"}
-                _focusWithin={{
-                  borderColor: "brand.focusRing",
-                  bg: "white",
-                }}
               >
                 <Box color="neutralMuted">
                   <Clapperboard size={18} color="currentColor" />
@@ -413,23 +355,16 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                     if (errors.title)
                       setErrors((prev) => ({ ...prev, title: null }));
                   }}
-                  fontFamily="body"
                   fontSize="xs"
                   fontWeight="medium"
                   color="neutral"
                   p={0}
                   bg="transparent"
                   h="auto"
-                  _placeholder={{ color: "fg.subtle" }}
                 />
               </Flex>
               {errors.title && (
-                <Text
-                  fontFamily="body"
-                  fontSize="2xs"
-                  color="status.error"
-                  mt={1}
-                >
+                <Text fontSize="2xs" color="status.error" mt={1}>
                   {errors.title}
                 </Text>
               )}
@@ -438,12 +373,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
             {/* POSTER URL & INSTANT PREVIEW */}
             <Box>
               <Flex justify="space-between" align="center" mb={1.5}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="semibold"
-                  color="neutral"
-                >
+                <Text fontSize="xs" fontWeight="semibold" color="neutral">
                   Poster Artwork URL
                 </Text>
                 <CustomBadge variant="date" fontSize="2xs" px={2} py={0.2}>
@@ -460,9 +390,6 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                   borderRadius="2xl"
                   align="center"
                   gap={2.5}
-                  border="1px solid"
-                  borderColor="transparent"
-                  _focusWithin={{ borderColor: "brand.focusRing", bg: "white" }}
                 >
                   <Box color="neutralMuted">
                     <LinkIcon size={16} color="currentColor" />
@@ -472,17 +399,14 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                     placeholder="https://images.unsplash.com/..."
                     value={image}
                     onChange={(e) => setImage(e.target.value)}
-                    fontFamily="body"
                     fontSize="xs"
                     color="neutral"
                     bg="transparent"
                     p={0}
                     h="auto"
-                    _placeholder={{ color: "fg.subtle" }}
                   />
                 </Flex>
 
-                {/* Instant Dynamic Thumbnail */}
                 <Box
                   w="44px"
                   h="44px"
@@ -492,7 +416,6 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                   border="1px solid"
                   borderColor="neutralBorder"
                   flexShrink={0}
-                  position="relative"
                 >
                   {image ? (
                     <Image
@@ -501,17 +424,6 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                       w="full"
                       h="full"
                       objectFit="cover"
-                      fallback={
-                        <Flex
-                          w="full"
-                          h="full"
-                          align="center"
-                          justify="center"
-                          color="neutralMuted"
-                        >
-                          <ImageIcon size={18} />
-                        </Flex>
-                      }
                     />
                   ) : (
                     <Flex
@@ -528,127 +440,56 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
               </Flex>
             </Box>
 
-            {/* ========================================================
-                3. WATCH STATUS SELECTION & CONDITIONAL FIELDS
-                ======================================================== */}
+            {/* WATCH STATUS SELECTION */}
             <Box pt={1}>
-              <Flex justify="space-between" align="center" mb={2}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="semibold"
-                  color="neutral"
-                >
-                  Watch Status{" "}
-                  <Text as="span" color="primary">
-                    *
-                  </Text>
+              <Text fontSize="xs" fontWeight="semibold" color="neutral" mb={2}>
+                Watch Status{" "}
+                <Text as="span" color="primary">
+                  *
                 </Text>
-                {/* <Text fontFamily="body" fontSize="2xs" color="neutralMuted">
-                  Controls diary rating & dates
-                </Text> */}
-              </Flex>
+              </Text>
 
               <SimpleGrid columns={3} gap={2} mb={3}>
-                {/* WATCHED */}
-                <Flex
-                  direction="column"
-                  align="center"
-                  justify="center"
-                  py={2.5}
-                  borderRadius="2xl"
-                  cursor="pointer"
-                  transition="all 0.2s"
-                  bg={status === "Watched" ? "primary" : "neutralSoft"}
-                  color={status === "Watched" ? "white" : "neutral"}
-                  onClick={() => setStatus("Watched")}
-                >
-                  <CheckCircle2 size={16} />
-                  <Text
-                    fontFamily="body"
-                    fontSize="2xs"
-                    fontWeight="bold"
-                    mt={1}
+                {[
+                  { id: "watched", label: "Watched", Icon: CheckCircle2 },
+                  { id: "wishlist", label: "Wishlist", Icon: Bookmark },
+                  { id: "scheduled", label: "Scheduled", Icon: CalendarClock },
+                ].map(({ id, label, Icon }) => (
+                  <Flex
+                    key={id}
+                    direction="column"
+                    align="center"
+                    justify="center"
+                    py={2.5}
+                    borderRadius="2xl"
+                    cursor="pointer"
+                    transition="all 0.2s"
+                    bg={status === id ? "primary" : "neutralSoft"}
+                    color={status === id ? "white" : "neutral"}
+                    onClick={() => setStatus(id)}
                   >
-                    Watched
-                  </Text>
-                </Flex>
-
-                {/* WISHLIST */}
-                <Flex
-                  direction="column"
-                  align="center"
-                  justify="center"
-                  py={2.5}
-                  borderRadius="2xl"
-                  cursor="pointer"
-                  transition="all 0.2s"
-                  bg={status === "Wishlist" ? "primary" : "neutralSoft"}
-                  color={status === "Wishlist" ? "white" : "neutral"}
-                  onClick={() => setStatus("Wishlist")}
-                >
-                  <Bookmark size={16} />
-                  <Text
-                    fontFamily="body"
-                    fontSize="2xs"
-                    fontWeight="bold"
-                    mt={1}
-                  >
-                    Wishlist
-                  </Text>
-                </Flex>
-
-                {/* SCHEDULED */}
-                <Flex
-                  direction="column"
-                  align="center"
-                  justify="center"
-                  py={2.5}
-                  borderRadius="2xl"
-                  cursor="pointer"
-                  transition="all 0.2s"
-                  bg={status === "Scheduled" ? "primary" : "neutralSoft"}
-                  color={status === "Scheduled" ? "white" : "neutral"}
-                  onClick={() => setStatus("Scheduled")}
-                >
-                  <CalendarClock size={16} />
-                  <Text
-                    fontFamily="body"
-                    fontSize="2xs"
-                    fontWeight="bold"
-                    mt={1}
-                  >
-                    Scheduled
-                  </Text>
-                </Flex>
+                    <Icon size={16} />
+                    <Text fontSize="2xs" fontWeight="bold" mt={1}>
+                      {label}
+                    </Text>
+                  </Flex>
+                ))}
               </SimpleGrid>
 
-              {/* A. CONDITIONAL: WATCHED CARD (Rating & Date) */}
-              {status === "Watched" && (
+              {status === "watched" && (
                 <Box
                   bg="neutralSoft"
                   borderRadius="2xl"
                   p={4}
                   border="1px solid"
                   borderColor="neutralBorder"
-                  animation="fadeIn 0.2s ease-out"
                 >
-                  {/* Watched Date */}
                   <Box mb={4}>
                     <Flex justify="space-between" align="center" mb={1.5}>
-                      <Text
-                        fontFamily="body"
-                        fontSize="xs"
-                        fontWeight="semibold"
-                        color="neutral"
-                      >
+                      <Text fontSize="xs" fontWeight="semibold" color="neutral">
                         When did you watch it?
                       </Text>
-                      <Text
-                        fontFamily="body"
-                        fontSize="2xs"
-                        color="neutralMuted"
-                      >
+                      <Text fontSize="2xs" color="neutralMuted">
                         Defaults to Today
                       </Text>
                     </Flex>
@@ -668,7 +509,6 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                         bg="transparent"
                         onChange={(e) => setWatchedDate(e.target.value)}
                         variant="unstyled"
-                        fontFamily="body"
                         fontSize="xs"
                         fontWeight="semibold"
                         color="neutral"
@@ -679,15 +519,9 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                     </Flex>
                   </Box>
 
-                  {/* Rating Slider & Score Pill */}
                   <Box>
                     <Flex justify="space-between" align="center" mb={2}>
-                      <Text
-                        fontFamily="body"
-                        fontSize="xs"
-                        fontWeight="semibold"
-                        color="neutral"
-                      >
+                      <Text fontSize="xs" fontWeight="semibold" color="neutral">
                         Personal Popcorn Rating
                       </Text>
                       <CustomBadge variant="secondary" px={2.5} py={0.5}>
@@ -695,16 +529,10 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                       </CustomBadge>
                     </Flex>
 
-                    {/* Tier Title & Stars */}
                     <Flex justify="space-between" align="center" mb={3}>
                       <Flex align="center" gap={1.5}>
                         <Text fontSize="md">{getScoreMeta(rating).emoji}</Text>
-                        <Text
-                          fontFamily="body"
-                          fontSize="xs"
-                          fontWeight="black"
-                          color="primary"
-                        >
+                        <Text fontSize="xs" fontWeight="black" color="primary">
                           {getScoreMeta(rating).title}
                         </Text>
                       </Flex>
@@ -720,7 +548,6 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                       </Flex>
                     </Flex>
 
-                    {/* Smooth Range Slider */}
                     <input
                       type="range"
                       min="0"
@@ -737,20 +564,9 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                       }}
                     />
 
-                    <Flex
-                      justify="space-between"
-                      mt={1.5}
-                      fontSize="3xs"
-                      color="neutralMuted"
-                    >
-                      <Text fontSize={"sm"}>0 (Burnt)</Text>
-                      <Text fontSize={"sm"}>5.0</Text>
-                      <Text fontSize={"sm"}>10 (Golden Sweet)</Text>
-                    </Flex>
-
                     <Flex align="center" gap={1.5} mt={3} color="neutralMuted">
                       <Lock size={12} color="currentColor" />
-                      <Text fontFamily="body" fontSize="2xs" fontStyle="italic">
+                      <Text fontSize="2xs" fontStyle="italic">
                         Owner rating only — saved to your personal watch
                         statistics
                       </Text>
@@ -759,8 +575,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                 </Box>
               )}
 
-              {/* B. CONDITIONAL: SCHEDULED DATE PICKER */}
-              {status === "Scheduled" && (
+              {status === "scheduled" && (
                 <Box
                   bg="neutralSoft"
                   borderRadius="2xl"
@@ -769,12 +584,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                   borderColor="neutralBorder"
                 >
                   <Flex justify="space-between" align="center" mb={1.5}>
-                    <Text
-                      fontFamily="body"
-                      fontSize="xs"
-                      fontWeight="semibold"
-                      color="neutral"
-                    >
+                    <Text fontSize="xs" fontWeight="semibold" color="neutral">
                       Target Watch Date{" "}
                       <Text as="span" color="primary">
                         *
@@ -816,7 +626,6 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                         }
                       }}
                       variant="unstyled"
-                      fontFamily="body"
                       fontSize="xs"
                       fontWeight="semibold"
                       color="neutral"
@@ -826,20 +635,14 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                     <CalendarClock size={16} color="#73778D" />
                   </Flex>
                   {errors.scheduledDate && (
-                    <Text
-                      fontFamily="body"
-                      fontSize="2xs"
-                      color="status.error"
-                      mt={1}
-                    >
+                    <Text fontSize="2xs" color="status.error" mt={1}>
                       {errors.scheduledDate}
                     </Text>
                   )}
                 </Box>
               )}
 
-              {/* C. CONDITIONAL: WISHLIST INFO NOTE */}
-              {status === "Wishlist" && (
+              {status === "wishlist" && (
                 <Flex
                   bg="tertiarySoft"
                   borderRadius="2xl"
@@ -850,12 +653,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                   <Box color="tertiary" flexShrink={0}>
                     <Info size={16} color="currentColor" />
                   </Box>
-                  <Text
-                    fontFamily="body"
-                    fontSize="2xs"
-                    color="neutral"
-                    lineHeight="tall"
-                  >
+                  <Text fontSize="2xs" color="neutral" lineHeight="tall">
                     Saved to your wishlist! Ratings and watch dates will unlock
                     once marked as watched.
                   </Text>
@@ -863,15 +661,10 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
               )}
             </Box>
 
-            {/* DESCRIPTION & CINEMA SYNOPSIS */}
+            {/* DESCRIPTION */}
             <Box>
               <Flex justify="space-between" align="center" mb={1.5}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="semibold"
-                  color="neutral"
-                >
+                <Text fontSize="xs" fontWeight="semibold" color="neutral">
                   Personal Synopsis & Memory
                 </Text>
                 <CustomBadge variant="date" fontSize="2xs" px={2} py={0.2}>
@@ -884,9 +677,6 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                 p={3.5}
                 borderRadius="2xl"
                 position="relative"
-                border="1px solid"
-                borderColor="transparent"
-                _focusWithin={{ borderColor: "brand.focusRing", bg: "white" }}
               >
                 <Textarea
                   placeholder="The coziest comfort watch with tea and fluffy blankets..."
@@ -894,57 +684,40 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                   bg="transparent"
                   value={description}
                   onChange={(e) => setDescription(e.target.value.slice(0, 280))}
-                  fontFamily="body"
                   fontSize="xs"
                   color="neutral"
                   rows={3}
                   resize="none"
                   p={0}
-                  _placeholder={{ color: "fg.subtle" }}
                 />
                 <Text
                   position="absolute"
                   bottom={2}
                   right={3}
-                  fontFamily="body"
-                  fontSize="4xs"
-                  color="neutralMuted"
+                  fontSize="2xs"
+                  color={description.length >= 280 ? "primary" : "neutralMuted"}
                 >
                   {description.length} / 280
                 </Text>
               </Box>
             </Box>
 
-            {/* MOOD STICKER CHIPS */}
-
             {/* CINEMA MOOD STICKERS */}
             <Box>
               <Flex justify="space-between" align="center" mb={2}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="bold"
-                  color="neutral"
-                >
+                <Text fontSize="xs" fontWeight="bold" color="neutral">
                   Cinema Mood Stickers
                 </Text>
-
-                <Text fontFamily="body" fontSize="2xs" color="primary">
+                <Text fontSize="2xs" color="primary">
                   {selectedMoods.length}/5 selected
                 </Text>
               </Flex>
 
-              <Text fontSize="2xs" color="neutralMuted" mb={3}>
-                Select at least 1 and up to 5 moods, or create your own.
-              </Text>
-
-              {/* PRESET MOODS */}
               <Flex wrap="wrap" gap={2}>
                 {moodTags.map((m) => {
                   const isSelected = selectedMoods.some(
                     (mood) => mood.toLowerCase() === m.label.toLowerCase(),
                   );
-
                   return (
                     <Flex
                       key={m.label}
@@ -960,13 +733,12 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                       cursor="pointer"
                       onClick={() => handleMoodClick(m)}
                       transition="all 0.2s"
-                      boxShadow={isSelected ? "xs" : "none"}
                       opacity={
                         !isSelected && selectedMoods.length >= 5 ? 0.5 : 1
                       }
                     >
                       <Text fontSize="xs">{m.emoji}</Text>
-                      <Text fontFamily="body" fontSize="2xs" fontWeight="bold">
+                      <Text fontSize="2xs" fontWeight="bold">
                         {m.label}
                       </Text>
                       {isSelected && <CheckCircle2 size={12} />}
@@ -975,18 +747,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                 })}
               </Flex>
 
-              {/* CUSTOM MOOD INPUT */}
               <Box mt={4}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="semibold"
-                  color="neutral"
-                  mb={1.5}
-                >
-                  Create Your Own Mood
-                </Text>
-
                 <Flex gap={2}>
                   <Input
                     value={customMood}
@@ -1000,7 +761,7 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                         handleAddCustomMood();
                       }
                     }}
-                    placeholder="e.g. Mind-bending, Rainy Day..."
+                    placeholder="Add custom mood (e.g. Rainy Day)..."
                     bg="neutralSoft"
                     border="1px solid"
                     borderColor="neutralBorder"
@@ -1009,10 +770,11 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                     disabled={selectedMoods.length >= 5}
                     maxLength={40}
                   />
-
                   <CustomButton
                     type="button"
                     variant="primary"
+                    w="auto"
+                    px={4}
                     disabled={selectedMoods.length >= 5 || !customMood.trim()}
                     onClick={handleAddCustomMood}
                   >
@@ -1021,98 +783,62 @@ export default function AddMovieOrWebSeries({ onSubmitMovie }) {
                 </Flex>
               </Box>
 
-              {/* SELECTED CUSTOM AND PRESET MOODS */}
               {selectedMoods.length > 0 && (
-                <Box mt={3}>
-                  <Text
-                    fontFamily="body"
-                    fontSize="2xs"
-                    fontWeight="semibold"
-                    color="neutralMuted"
-                    mb={2}
-                  >
-                    Your selected moods
-                  </Text>
-
-                  <Flex wrap="wrap" gap={2}>
-                    {selectedMoods.map((mood) => {
-                      const preset = moodTags.find(
-                        (m) => m.label.toLowerCase() === mood.toLowerCase(),
-                      );
-
-                      return (
-                        <Flex
-                          key={mood}
-                          align="center"
-                          gap={1.5}
-                          px={2.5}
-                          py={1}
-                          borderRadius="full"
-                          bg={preset ? preset.bg : "tertiarySoft"}
-                          color={preset ? preset.color : "neutral"}
-                          fontSize="2xs"
+                <Flex wrap="wrap" gap={2} mt={3}>
+                  {selectedMoods.map((mood) => (
+                    <Flex
+                      key={mood}
+                      align="center"
+                      gap={1.5}
+                      px={2.5}
+                      py={1}
+                      borderRadius="full"
+                      bg="tertiarySoft"
+                      color="neutral"
+                      fontSize="2xs"
+                    >
+                      <Text fontWeight="semibold">{mood}</Text>
+                      {selectedMoods.length > 1 && (
+                        <Box
+                          as="span"
+                          cursor="pointer"
+                          onClick={() =>
+                            setSelectedMoods((prev) =>
+                              prev.filter((item) => item !== mood),
+                            )
+                          }
                         >
-                          <Text>{preset?.emoji ?? "🎭"}</Text>
-                          <Text fontWeight="semibold">{mood}</Text>
-
-                          <Box
-                            as="span"
-                            cursor={
-                              selectedMoods.length > 1
-                                ? "pointer"
-                                : "not-allowed"
-                            }
-                            opacity={selectedMoods.length > 1 ? 1 : 0.4}
-                            onClick={() => {
-                              if (selectedMoods.length > 1) {
-                                setSelectedMoods((prev) =>
-                                  prev.filter((item) => item !== mood),
-                                );
-                                setMoodError("");
-                              }
-                            }}
-                          >
-                            <X size={12} />
-                          </Box>
-                        </Flex>
-                      );
-                    })}
-                  </Flex>
-                </Box>
+                          <X size={12} />
+                        </Box>
+                      )}
+                    </Flex>
+                  ))}
+                </Flex>
               )}
 
               {(moodError || errors.moodTags) && (
-                <Text
-                  fontFamily="body"
-                  fontSize="2xs"
-                  color="status.error"
-                  mt={2}
-                >
+                <Text fontSize="2xs" color="status.error" mt={2}>
                   {moodError || errors.moodTags}
                 </Text>
               )}
             </Box>
 
-            {/* ACTION BUTTONS */}
             <VStack gap={2.5} pt={2}>
               <CustomButton
                 type="submit"
                 variant="primary"
-                fontFamily="body"
-                disabled={isSubmitting}
+                disabled={isPending}
                 leftElement={<Sparkles size={16} color="currentColor" />}
                 rightElement="✨"
               >
-                {isSubmitting
-                  ? "Saving to Collection..."
-                  : "Save to My Collection"}
+                {isPending
+                  ? "Saving..."
+                  : isEditMode
+                    ? "Update Cinema Memory"
+                    : "Save to My Collection"}
               </CustomButton>
 
-              <CustomButton
-                variant="neutral"
-                fontFamily="body"
-                onClick={() => navigate(-1)}
-              >
+              <CustomButton variant="neutral" onClick={() => navigate(-1)}>
                 Cancel
               </CustomButton>
             </VStack>

@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+// src/features/playlistDetails/pages/PlaylistDetails.jsx
+import React, { useState, useMemo } from "react";
 import { Box, Flex, Text, VStack, Image } from "@chakra-ui/react";
-import Logo from "../../../logo/logo_nobg.svg";
+import { useParams, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 import {
   Globe,
   Film,
@@ -8,93 +10,150 @@ import {
   Link as LinkIcon,
   Dices,
   ShieldCheck,
-  ArrowUpDown,
   Star,
   Trash2,
   Calendar,
   Heart,
   ArrowRight,
-  Library,
   Clapperboard,
+  Lock,
+  X,
+  Plus,
 } from "lucide-react";
-import { CustomBadge } from "../../../shared/components/CustomBadge"; // Adjust path as needed
-import { CustomButton } from "../../../shared/components/CustomButton"; // Adjust path as needed
+import Logo from "../../../logo/logo_nobg.svg";
+import { CustomBadge } from "../../../shared/components/CustomBadge";
+import { CustomButton } from "../../../shared/components/CustomButton";
+import {
+  usePlaylistDetailQuery,
+  useAddMovieToPlaylistMutation,
+  useRemoveMovieFromPlaylistMutation,
+} from "../../../hooks/usePlaylistQueries.js";
+import { useMoviesQuery } from "../../../hooks/useMovieQueries.js";
+import { useThrottledCallback } from "../../../hooks/usePerformance.js";
+import { toaster } from "../../../components/ui/toaster.jsx";
 
-// ==========================================
-// DUMMY PLAYLIST FILMS DATA[cite: 21, 22]
-// ==========================================
-const title = "Rainy Days Ghiblis";
-
-const initialFilms = [
-  {
-    id: 1,
-    title: "Spirited Away",
-    year: 2001,
-    tag: "Oct 16",
-    tagType: "date",
-    score: 9.5,
-    accent: "primary",
-    poster:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT-xULuOTApe4ibW14wHgzhG_fe8BHAEy5vtAkVoFWMDA&s=10",
-  },
-  {
-    id: 2,
-    title: "My Neighbor Totoro",
-    year: 1988,
-    tag: "Rainy Classic",
-    tagType: "text",
-    score: 9.2,
-    accent: "secondary",
-    poster:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRNLyMduFg5824KD_zJOp68YFAHGl7cqktBc26WmsttOw&s=10",
-  },
-  {
-    id: 3,
-    title: "Howl's Moving Castle",
-    year: 2004,
-    tag: "Top Favorite",
-    tagType: "favorite",
-    score: 9.6,
-    accent: "tertiary",
-    poster:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRUTGxZDdvOnoONixASEfI5rXxKhqO-2roxDAnSEHrsiw&s=10g",
-  },
-  {
-    id: 4,
-    title: "Kiki's Delivery Service",
-    year: 1989,
-    tag: "Cozy Vibe",
-    tagType: "text",
-    score: 9.0,
-    accent: "primary",
-    poster:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwQng2-a15SOL36EX8pufCm2MB0lBrTE8iYsgl4zCLdQ&s=10",
-  },
-  {
-    id: 5,
-    title: "Whisper of the Heart",
-    year: 1995,
-    tag: "Nostalgia",
-    tagType: "text",
-    score: 8.9,
-    accent: "secondary",
-    poster:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQQcbTH8J2fj9Pw85x-izGTpDxUQMM4k-o84TY9tD2PFg&s=10",
-  },
-];
+const FALLBACK_POSTER =
+  "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=400&auto=format&fit=crop";
 
 const PlaylistDetails = () => {
-  const [films, setFilms] = useState(initialFilms);
+  const { id: playlistId } = useParams();
+  const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
 
-  const handleRemoveFilm = (filmId) => {
-    setFilms((prev) => prev.filter((f) => f.id !== filmId));
+  const [isAddingMovies, setIsAddingMovies] = useState(false);
+
+  // Queries & Mutations
+  const { data: playlist, isLoading } = usePlaylistDetailQuery(playlistId);
+  const { data: userMoviesData } = useMoviesQuery();
+  const { mutate: addMovieToPlaylist, isPending: isAdding } =
+    useAddMovieToPlaylistMutation();
+  const { mutate: removeMovie, isPending: isRemoving } =
+    useRemoveMovieFromPlaylistMutation();
+
+  // Determine if viewing user is the owner
+  const isOwner = useMemo(() => {
+    if (!user || !playlist) return false;
+    const ownerId = playlist.owner?._id || playlist.owner;
+    return ownerId?.toString() === user._id?.toString();
+  }, [user, playlist]);
+
+  // Extract populated movies list
+  const playlistFilms = useMemo(() => {
+    return (playlist?.movies || [])
+      .map((entry) => ({
+        entryAddedAt: entry.addedAt,
+        movie: entry.movie,
+      }))
+      .filter((entry) => Boolean(entry.movie));
+  }, [playlist]);
+
+  // Candidates from collection not yet in this playlist
+  const availableToAdd = useMemo(() => {
+    if (!userMoviesData?.movies) return [];
+    const existingIds = new Set(playlistFilms.map((f) => f.movie._id));
+    return userMoviesData.movies.filter((m) => !existingIds.has(m._id));
+  }, [userMoviesData, playlistFilms]);
+
+  // Copy shareable URL
+  const handleShareLink = () => {
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(window.location.href);
+      toaster.create({
+        title: "Link Copied! 🔗",
+        description: "Share this curated reel with your movie buddies.",
+        type: "success",
+      });
+    }
   };
 
-  const handleRandomPick = () => {
-    if (films.length === 0) return;
-    const random = films[Math.floor(Math.random() * films.length)];
-    alert(`Tonight's pick: ${random.title}! 🍿`);
+  // Random movie picker
+  const handleRandomPick = useThrottledCallback(() => {
+    if (playlistFilms.length === 0) {
+      toaster.create({
+        title: "Shelf is Empty",
+        description: "Add movies to this playlist to roll a random pick!",
+        type: "warning",
+      });
+      return;
+    }
+    const randomIndex = Math.floor(Math.random() * playlistFilms.length);
+    const chosen = playlistFilms[randomIndex].movie;
+
+    toaster.create({
+      title: `Tonight's Pick: ${chosen.title}! 🍿`,
+      description: "Opening details for your screening...",
+      type: "success",
+    });
+
+    navigate(`/movies/${chosen._id}`);
+  }, 1500);
+
+  // Remove a movie from playlist
+  const handleRemoveFilm = (movieId, movieTitle) => {
+    if (isRemoving) return;
+    if (window.confirm(`Remove "${movieTitle}" from this playlist?`)) {
+      removeMovie({ playlistId, movieId });
+    }
   };
+
+  // Add movie from collection
+  const handleAddMovie = (movieId) => {
+    if (isAdding) return;
+    addMovieToPlaylist({ playlistId, movieId });
+  };
+
+  if (isLoading) {
+    return (
+      <Box minH="70vh" p={10} textAlign="center">
+        <Text fontSize="sm" color="neutralMuted">
+          Loading curated shelf... 🍿
+        </Text>
+      </Box>
+    );
+  }
+
+  if (!playlist) {
+    return (
+      <Box minH="70vh" p={10} textAlign="center">
+        <Text fontWeight="bold" color="neutral">
+          Playlist not found or private
+        </Text>
+        <Text
+          fontSize="xs"
+          color="primary"
+          mt={2}
+          cursor="pointer"
+          onClick={() => navigate("/my-playlist")}
+        >
+          ← Back to Curated Shelves
+        </Text>
+      </Box>
+    );
+  }
+
+  const curatorName = isOwner
+    ? "You"
+    : playlist.owner?.name || "Cinephile Curator";
 
   return (
     <Box
@@ -107,9 +166,7 @@ const PlaylistDetails = () => {
       pb={24}
     >
       <Box maxW="lg" mx="auto">
-        {/* ========================================================
-            1. PLAYLIST HEADER HERO CARD[cite: 21]
-            ======================================================== */}
+        {/* 1. PLAYLIST HEADER HERO CARD */}
         <Box
           bg="white"
           borderRadius="3xl"
@@ -119,26 +176,24 @@ const PlaylistDetails = () => {
           borderColor="neutralBorder"
           boxShadow="0 4px 15px rgba(0, 0, 0, 0.02)"
         >
-          {/* Top Row: Avatar & Title Header[cite: 21] */}
           <Flex gap={3.5} align="flex-start" mb={3}>
             <Box flex={1}>
-              <Flex align="center" gap={1.5} mb={1.5}>
-                <Text
-                  fontFamily="body"
-                  fontSize="4xl"
-                  fontWeight="black"
-                  color="neutral"
-                  lineHeight="short"
-                >
-                  {title.length > 15 ? `${title.slice(0, 15)}...` : title}
-                </Text>
-              </Flex>
+              <Text
+                fontFamily="body"
+                fontSize="3xl"
+                fontWeight="black"
+                color="neutral"
+                lineHeight="short"
+                mb={2}
+              >
+                {playlist.name}
+              </Text>
 
               <Flex wrap="wrap" gap={2}>
                 <CustomBadge
                   variant="info"
-                  bg="tertiarySoft"
-                  color="tertiaryDark"
+                  bg={playlist.isPublic ? "tertiarySoft" : "neutralSoft"}
+                  color={playlist.isPublic ? "tertiaryDark" : "neutral"}
                   fontFamily="body"
                   textTransform="none"
                   px={2.5}
@@ -146,8 +201,12 @@ const PlaylistDetails = () => {
                   fontSize="2xs"
                   gap={1}
                 >
-                  <Globe size={11} color="currentColor" />
-                  Public Playlist
+                  {playlist.isPublic ? (
+                    <Globe size={11} color="currentColor" />
+                  ) : (
+                    <Lock size={11} color="currentColor" />
+                  )}
+                  {playlist.isPublic ? "Public Playlist" : "Private Shelf"}
                 </CustomBadge>
 
                 <CustomBadge
@@ -159,13 +218,14 @@ const PlaylistDetails = () => {
                   fontSize="2xs"
                   gap={1}
                 >
-                  <Film size={11} color="currentColor" />8 Films Curated
+                  <Film size={11} color="currentColor" />
+                  {playlistFilms.length}{" "}
+                  {playlistFilms.length === 1 ? "Film" : "Films"} Curated
                 </CustomBadge>
               </Flex>
             </Box>
 
-            {/* Logo section  */}
-
+            {/* Logo Badge */}
             <Box position="relative" flexShrink={0}>
               <Flex
                 w="62px"
@@ -174,9 +234,8 @@ const PlaylistDetails = () => {
                 borderRadius="2xl"
                 align="center"
                 justify="center"
-                fontSize="2xl"
               >
-                <Image src={Logo} alt="logo.png" />
+                <Image src={Logo} alt="SharePopcorns Logo" w="42px" h="42px" />
               </Flex>
               <Flex
                 position="absolute"
@@ -196,7 +255,14 @@ const PlaylistDetails = () => {
             </Box>
           </Flex>
 
-          {/* Curator User Info[cite: 21] */}
+          {/* Description */}
+          {playlist.description && (
+            <Text fontSize="xs" color="neutralMuted" lineHeight="tall" mb={3}>
+              {playlist.description}
+            </Text>
+          )}
+
+          {/* Curator User Info */}
           <Flex align="center" gap={2} mb={5}>
             <Flex
               w="22px"
@@ -217,25 +283,34 @@ const PlaylistDetails = () => {
             >
               Curated by{" "}
               <Text as="span" fontWeight="bold">
-                Mia Jenkins
+                {curatorName}
               </Text>{" "}
-              • Sep 2026
+              •{" "}
+              {new Date(playlist.createdAt).toLocaleDateString("en-US", {
+                month: "short",
+                year: "numeric",
+              })}
             </Text>
           </Flex>
 
-          {/* Action Buttons[cite: 21] */}
+          {/* Action Buttons */}
           <VStack gap={2.5}>
-            {/* Primary Action Button[cite: 21] */}
-            <CustomButton
-              variant="primary"
-              fontFamily="body"
-              py={6}
-              leftElement={<PlusCircle size={18} color="currentColor" />}
-            >
-              <Text fontSize={"md"}> Add Movie from Collection</Text>
-            </CustomButton>
+            {isOwner && (
+              <CustomButton
+                variant="primary"
+                fontFamily="body"
+                py={6}
+                leftElement={<PlusCircle size={18} color="currentColor" />}
+                onClick={() => setIsAddingMovies((prev) => !prev)}
+              >
+                <Text fontSize="md">
+                  {isAddingMovies
+                    ? "Close Collection Shelf"
+                    : "Add Movie from Collection"}
+                </Text>
+              </CustomButton>
+            )}
 
-            {/* Secondary Split Buttons[cite: 21] */}
             <Flex gap={2.5} w="full">
               <CustomButton
                 variant="neutral"
@@ -247,6 +322,7 @@ const PlaylistDetails = () => {
                 py={4}
                 leftElement={<LinkIcon size={14} color="currentColor" />}
                 rightElement="🔗"
+                onClick={handleShareLink}
               >
                 <Text fontSize="xs">Share Link</Text>
               </CustomButton>
@@ -262,15 +338,132 @@ const PlaylistDetails = () => {
                 rightElement="🎲"
                 onClick={handleRandomPick}
               >
-                <Text fontSize="xs"> Random Pick</Text>
+                <Text fontSize="xs">Random Pick</Text>
               </CustomButton>
             </Flex>
           </VStack>
         </Box>
 
-        {/* ========================================================
-            2. PERMANENT COLLECTION INFO BANNER[cite: 21]
-            ======================================================== */}
+        {/* 2. INLINE ADD FROM COLLECTION DRAWER */}
+        {isAddingMovies && isOwner && (
+          <Box
+            bg="white"
+            borderRadius="3xl"
+            p={5}
+            mb={4}
+            border="1px solid"
+            borderColor="neutralBorder"
+            boxShadow="0 4px 15px rgba(0, 0, 0, 0.02)"
+          >
+            <Flex justify="space-between" align="center" mb={3}>
+              <Box>
+                <Text fontSize="sm" fontWeight="bold" color="neutral">
+                  Add From Your Watched & Wishlist
+                </Text>
+                <Text fontSize="2xs" color="neutralMuted">
+                  Tap to add any title directly into "{playlist.name}"
+                </Text>
+              </Box>
+              <Box
+                cursor="pointer"
+                color="neutralMuted"
+                onClick={() => setIsAddingMovies(false)}
+              >
+                <X size={16} />
+              </Box>
+            </Flex>
+
+            {availableToAdd.length === 0 ? (
+              <Box py={4} textAlign="center">
+                <Text fontSize="xs" color="neutralMuted">
+                  All your collection titles are already in this playlist! 🍿
+                </Text>
+                <Text
+                  fontSize="xs"
+                  fontWeight="bold"
+                  color="primary"
+                  mt={2}
+                  cursor="pointer"
+                  onClick={() => navigate("/add")}
+                >
+                  + Log a New Title First
+                </Text>
+              </Box>
+            ) : (
+              <VStack
+                gap={2}
+                align="stretch"
+                maxH="280px"
+                overflowY="auto"
+                pr={1}
+              >
+                {availableToAdd.map((m) => (
+                  <Flex
+                    key={m._id}
+                    bg="neutralSoft"
+                    p={2.5}
+                    borderRadius="2xl"
+                    align="center"
+                    justify="space-between"
+                  >
+                    <Flex align="center" gap={3}>
+                      <Box
+                        w="40px"
+                        h="52px"
+                        borderRadius="xl"
+                        overflow="hidden"
+                        bg="white"
+                        flexShrink={0}
+                      >
+                        <Image
+                          src={m.image || FALLBACK_POSTER}
+                          alt={m.title}
+                          w="full"
+                          h="full"
+                          objectFit="cover"
+                        />
+                      </Box>
+                      <Box>
+                        <Text
+                          fontSize="xs"
+                          fontWeight="bold"
+                          color="neutral"
+                          lineClamp={1}
+                        >
+                          {m.title}
+                        </Text>
+                        <Text
+                          fontSize="3xs"
+                          color="neutralMuted"
+                          textTransform="capitalize"
+                        >
+                          {m.type} • {m.status}
+                        </Text>
+                      </Box>
+                    </Flex>
+
+                    <Flex
+                      w="28px"
+                      h="28px"
+                      bg="primary"
+                      color="white"
+                      borderRadius="full"
+                      align="center"
+                      justify="center"
+                      cursor="pointer"
+                      onClick={() => handleAddMovie(m._id)}
+                      _hover={{ bg: "primaryDark" }}
+                    >
+                      <Plus size={14} />
+                    </Flex>
+                  </Flex>
+                ))}
+              </VStack>
+            )}
+          </Box>
+        )}
+
+        {/* 3. SAFETY NOTICE BANNER */}
         <Flex
           bg="tertiarySoft"
           borderRadius="2xl"
@@ -296,9 +489,7 @@ const PlaylistDetails = () => {
           </Text>
         </Flex>
 
-        {/* ========================================================
-            3. FILMS IN PLAYLIST HEADER[cite: 21]
-            ======================================================== */}
+        {/* 4. FILMS IN PLAYLIST SECTION */}
         <Flex justify="space-between" align="center" mb={3} px={1}>
           <Flex align="center" gap={2}>
             <Text
@@ -309,7 +500,6 @@ const PlaylistDetails = () => {
             >
               Films in Playlist
             </Text>
-
             <Flex
               bg="primarySoft"
               color="primary"
@@ -318,238 +508,229 @@ const PlaylistDetails = () => {
               borderRadius="full"
             >
               <Text fontFamily="body" fontSize="2xs" fontWeight="bold">
-                {films.length} shown
+                {playlistFilms.length} total
               </Text>
             </Flex>
           </Flex>
-
-          <Flex
-            align="center"
-            gap={1}
-            color="neutralMuted"
-            cursor="pointer"
-            _hover={{ color: "neutral" }}
-          >
-            <ArrowUpDown size={12} color="currentColor" />
-            <Text fontFamily="body" fontSize="2xs" fontWeight="semibold">
-              Drag to order
-            </Text>
-          </Flex>
         </Flex>
 
-        {/* ========================================================
-            4. FILMS CARD LIST[cite: 21, 22]
-            ======================================================== */}
-        <VStack gap={3} align="stretch" mb={4}>
-          {films.map((film) => (
-            <Box
-              key={film.id}
-              bg="white"
-              borderRadius="2xl"
-              p={3}
-              pl={3}
-              border="1px solid"
-              borderColor="neutralBorder"
-              boxShadow="0 2px 10px rgba(0, 0, 0, 0.02)"
-              position="relative"
-              overflow="hidden"
-            >
-              {/* Left Accent Color Indicator Bar[cite: 21, 22] */}
+        {/* 5. FILMS CARD LIST */}
+        {playlistFilms.length === 0 ? (
+          <Box
+            bg="white"
+            borderRadius="3xl"
+            p={8}
+            textAlign="center"
+            border="1px dashed"
+            borderColor="neutralBorder"
+            mb={4}
+          >
+            <Text fontSize="2xl" mb={2}>
+              🎞️
+            </Text>
+            <Text fontSize="sm" fontWeight="bold" color="neutral">
+              This playlist is empty
+            </Text>
+            <Text fontSize="xs" color="neutralMuted" mt={1}>
+              {isOwner
+                ? "Tap 'Add Movie from Collection' above to add your favorite titles."
+                : "The curator hasn't added titles to this shelf yet."}
+            </Text>
+          </Box>
+        ) : (
+          <VStack gap={3} align="stretch" mb={4}>
+            {playlistFilms.map(({ movie: film }) => (
               <Box
-                position="absolute"
-                left={0}
-                top={3}
-                bottom={3}
-                w="4px"
-                bg={film.accent}
-                borderRightRadius="full"
-              />
+                key={film._id}
+                bg="white"
+                borderRadius="2xl"
+                p={3}
+                pl={3}
+                border="1px solid"
+                borderColor="neutralBorder"
+                boxShadow="0 2px 10px rgba(0, 0, 0, 0.02)"
+                position="relative"
+                overflow="hidden"
+              >
+                {/* Left Accent Bar */}
+                <Box
+                  position="absolute"
+                  left={0}
+                  top={3}
+                  bottom={3}
+                  w="4px"
+                  bg={film.rating >= 9 ? "secondary" : "primary"}
+                  borderRightRadius="full"
+                />
 
-              <Flex align="center" justify="space-between" gap={3}>
-                <Flex align="center" gap={3} flex={1}>
-                  {/* Thumbnail Preview[cite: 21, 22] */}
-                  <Box
-                    w="65px"
-                    h="75px"
-                    borderRadius="2xl"
-                    overflow="hidden"
-                    bg="neutralSoft"
-                    flexShrink={0}
+                <Flex align="center" justify="space-between" gap={3}>
+                  <Flex
+                    align="center"
+                    gap={3}
+                    flex={1}
+                    cursor="pointer"
+                    onClick={() => navigate(`/movies/${film._id}`)}
                   >
-                    <Image
-                      src={film.poster}
-                      alt={film.title}
-                      w="full"
-                      h="full"
-                      objectFit="cover"
-                    />
-                  </Box>
+                    <Box
+                      w="65px"
+                      h="75px"
+                      borderRadius="2xl"
+                      overflow="hidden"
+                      bg="neutralSoft"
+                      flexShrink={0}
+                    >
+                      <Image
+                        src={film.image || FALLBACK_POSTER}
+                        alt={film.title}
+                        w="full"
+                        h="full"
+                        objectFit="cover"
+                      />
+                    </Box>
 
-                  {/* Metadata and Title[cite: 21, 22] */}
-                  <Box flex={1}>
-                    <Flex align="center" gap={1.5} mb={0.5}>
-                      {/* Year Tag[cite: 21, 22] */}
-                      <Flex
-                        bg="neutralSoft"
-                        px={1.5}
-                        py={0.2}
-                        borderRadius="md"
-                      >
-                        <Text
-                          fontFamily="body"
-                          fontSize="12px"
-                          fontWeight="bold"
-                          color="neutral"
+                    <Box flex={1}>
+                      <Flex align="center" gap={1.5} mb={0.5}>
+                        <Flex
+                          bg="neutralSoft"
+                          px={1.5}
+                          py={0.2}
+                          borderRadius="md"
                         >
-                          {film.year}
-                        </Text>
-                      </Flex>
-
-                      {/* Dynamic Tag / Date / Favorite[cite: 21, 22] */}
-                      {film.tagType === "date" && (
-                        <Flex align="center" gap={1} color="neutralMuted">
-                          <Calendar size={10} color="currentColor" />
                           <Text
                             fontFamily="body"
-                            fontSize="12px"
-                            fontWeight="semibold"
+                            fontSize="xs"
+                            fontWeight="bold"
+                            color="neutral"
+                            textTransform="capitalize"
                           >
-                            {film.tag}
+                            {film.type}
                           </Text>
                         </Flex>
-                      )}
 
-                      {film.tagType === "favorite" && (
-                        <Flex align="center" gap={1} color="primary">
-                          <Heart
-                            size={10}
+                        {film.moodTags?.[0] && (
+                          <Flex align="center" gap={1} color="primary">
+                            <Heart size={10} fill="currentColor" />
+                            <Text
+                              fontFamily="body"
+                              fontSize="xs"
+                              fontWeight="bold"
+                            >
+                              {film.moodTags[0]}
+                            </Text>
+                          </Flex>
+                        )}
+                      </Flex>
+
+                      <Text
+                        fontFamily="body"
+                        fontSize="sm"
+                        fontWeight="bold"
+                        color="neutral"
+                        lineClamp={1}
+                        mb={1}
+                      >
+                        {film.title}
+                      </Text>
+
+                      {film.rating !== null && film.rating !== undefined && (
+                        <CustomBadge bg="secondary" variant="ratings">
+                          <Star
+                            size={9}
                             color="currentColor"
                             fill="currentColor"
                           />
-                          <Text
-                            fontFamily="body"
-                            fontSize="12px"
-                            fontWeight="bold"
-                          >
-                            {film.tag}
-                          </Text>
-                        </Flex>
+                          {Number(film.rating).toFixed(1)}
+                        </CustomBadge>
                       )}
+                    </Box>
+                  </Flex>
 
-                      {film.tagType === "text" && (
-                        <Text
-                          fontFamily="body"
-                          fontSize="12px"
-                          fontWeight="semibold"
-                          color="neutralMuted"
-                        >
-                          {film.tag}
-                        </Text>
-                      )}
-                    </Flex>
-
-                    {/* Film Title[cite: 21, 22] */}
-                    <Text
-                      fontFamily="body"
-                      fontSize="sm"
-                      fontWeight="bold"
-                      color="neutral"
-                      lineClamp={1}
-                      mb={1}
+                  {/* Remove Film Button (Owners only) */}
+                  {isOwner && (
+                    <Flex
+                      w="30px"
+                      h="30px"
+                      borderRadius="full"
+                      align="center"
+                      justify="center"
+                      color="neutralMuted"
+                      cursor="pointer"
+                      transition="all 0.2s"
+                      _hover={{ color: "status.error", bg: "primarySoft" }}
+                      onClick={() => handleRemoveFilm(film._id, film.title)}
                     >
-                      {film.title}
-                    </Text>
-
-                    {/* Rating Pill & Label[cite: 21, 22] */}
-                    <CustomBadge bg="secondary" variant="ratings">
-                      <Star size={9} color="currentColor" fill="currentColor" />
-                      {""}
-                      {film.score.toFixed(1)}
-                    </CustomBadge>
-                  </Box>
+                      <Trash2 size={16} color="currentColor" />
+                    </Flex>
+                  )}
                 </Flex>
+              </Box>
+            ))}
+          </VStack>
+        )}
 
-                {/* Remove Film Button[cite: 21, 22] */}
-                <Flex
-                  w="30px"
-                  h="30px"
-                  borderRadius="full"
-                  align="center"
-                  justify="center"
-                  color="neutralMuted"
-                  cursor="pointer"
-                  transition="all 0.2s"
-                  _hover={{ color: "status.error", bg: "primarySoft" }}
-                  onClick={() => handleRemoveFilm(film.id)}
-                >
-                  <Trash2 size={16} color="currentColor" />
-                </Flex>
+        {/* 6. BOTTOM EXPLORE / ADD PROMPT */}
+        {isOwner && (
+          <Flex
+            bg="neutralSoft"
+            borderRadius="2xl"
+            p={3}
+            align="center"
+            justify="space-between"
+            border="1px solid"
+            borderColor="neutralBorder"
+            cursor="pointer"
+            onClick={() => setIsAddingMovies(true)}
+          >
+            <Flex align="center" gap={3}>
+              <Flex
+                w="40px"
+                h="40px"
+                bg="white"
+                borderRadius="xl"
+                align="center"
+                justify="center"
+                color="tertiary"
+                boxShadow="xs"
+              >
+                <Clapperboard size={18} color="currentColor" />
               </Flex>
-            </Box>
-          ))}
-        </VStack>
 
-        {/* ========================================================
-            5. BOTTOM ADD MORE PROMPT CARD[cite: 22]
-            ======================================================== */}
-        <Flex
-          bg="neutralSoft"
-          borderRadius="2xl"
-          p={3}
-          align="center"
-          justify="space-between"
-          border="1px solid"
-          borderColor="neutralBorder"
-        >
-          <Flex align="center" gap={3}>
-            <Flex
-              w="40px"
-              h="40px"
-              bg="white"
-              borderRadius="xl"
-              align="center"
-              justify="center"
-              color="tertiary"
-              boxShadow="xs"
-            >
-              <Clapperboard size={18} color="currentColor" />
+              <Box>
+                <Text
+                  fontFamily="body"
+                  fontSize="xs"
+                  fontWeight="bold"
+                  color="neutral"
+                >
+                  Want to add more?
+                </Text>
+                <Text
+                  fontFamily="body"
+                  fontSize="3xs"
+                  color="neutralMuted"
+                  lineClamp={1}
+                >
+                  Select from {availableToAdd.length} eligible titles in your
+                  collection
+                </Text>
+              </Box>
             </Flex>
 
-            <Box>
-              <Text
-                fontFamily="body"
-                fontSize="xs"
-                fontWeight="bold"
-                color="neutral"
-              >
-                Want to add more?
-              </Text>
-              <Text
-                fontFamily="body"
-                fontSize="3xs"
-                color="neutralMuted"
-                lineClamp={1}
-              >
-                Select from 34 eligible watched & wishli...
-              </Text>
-            </Box>
+            <Flex
+              w="36px"
+              h="36px"
+              bg="tertiary"
+              color="white"
+              borderRadius="full"
+              align="center"
+              justify="center"
+              transition="all 0.2s"
+              _hover={{ bg: "tertiaryDark", transform: "scale(1.05)" }}
+            >
+              <ArrowRight size={16} color="currentColor" strokeWidth={2.5} />
+            </Flex>
           </Flex>
-
-          <Flex
-            w="36px"
-            h="36px"
-            bg="tertiary"
-            color="white"
-            borderRadius="full"
-            align="center"
-            justify="center"
-            cursor="pointer"
-            transition="all 0.2s"
-            _hover={{ bg: "tertiaryDark", transform: "scale(1.05)" }}
-          >
-            <ArrowRight size={16} color="currentColor" strokeWidth={2.5} />
-          </Flex>
-        </Flex>
+        )}
       </Box>
     </Box>
   );

@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+// src/features/profile/pages/Profile.jsx
+import React, { useState, useEffect, useMemo } from "react";
 import { Box, Flex, Text, VStack, Image, SimpleGrid } from "@chakra-ui/react";
 import {
-  Camera,
   User,
   Mail,
   Lock,
@@ -14,36 +14,84 @@ import {
   ShieldCheck,
   Film,
   Star,
+  Link as LinkIcon,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { CustomBadge } from "../../../shared/components/CustomBadge"; // Adjust path as needed
-import { CustomButton } from "../../../shared/components/CustomButton"; // Adjust path as needed
-import { CustomInput } from "../../../shared/components/CustomInput"; // Adjust path as needed
+import { CustomBadge } from "../../../shared/components/CustomBadge";
+import { CustomButton } from "../../../shared/components/CustomButton";
+import { CustomInput } from "../../../shared/components/CustomInput";
+import {
+  useProfileQuery,
+  useUpdateProfileMutation,
+  useLogout,
+} from "../../../hooks/useAuthMutations.js";
+import { useMoviesQuery } from "../../../hooks/useMovieQueries.js";
+import { useUserPlaylistsQuery } from "../../../hooks/usePlaylistQueries.js";
+
+const DEFAULT_AVATAR =
+  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=300&auto=format&fit=crop";
 
 const Profile = () => {
   const navigate = useNavigate();
+  const logout = useLogout();
 
-  // Profile editable states
-  const [userName, setUserName] = useState("Mia Jenkins");
-  const [email, setEmail] = useState("mia@example.com");
-  const [avatar, setAvatar] = useState(
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=300&auto=format&fit=crop",
-  );
+  const { data: profile } = useProfileQuery();
+  const { mutate: updateProfile, isPending: isSaving } =
+    useUpdateProfileMutation();
 
-  // Edit toggles
-  const [isEditingUsername, setIsEditingUsername] = useState(false);
-  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const { data: movieData } = useMoviesQuery();
+  const { data: playlists = [] } = useUserPlaylistsQuery(profile?._id);
 
-  const handleAvatarChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setAvatar(URL.createObjectURL(file));
+  const [userName, setUserName] = useState(profile?.name || "");
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar || "");
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isEditingAvatar, setIsEditingAvatar] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      setUserName(profile.name || "");
+      setAvatarUrl(profile.avatar || "");
     }
+  }, [profile]);
+
+  // Live stats computed from cached movies & playlists
+  const stats = useMemo(() => {
+    const watched = (movieData?.movies || []).filter(
+      (m) => m.status === "watched",
+    );
+    const rated = watched.filter(
+      (m) => m.rating !== null && m.rating !== undefined,
+    );
+    const avg =
+      rated.length > 0
+        ? (
+            rated.reduce((sum, m) => sum + Number(m.rating), 0) / rated.length
+          ).toFixed(1)
+        : "—";
+
+    return {
+      watchedCount: watched.length,
+      avgRating: avg,
+      playlistCount: playlists.length,
+    };
+  }, [movieData, playlists]);
+
+  const handleSaveName = () => {
+    setIsEditingName(false);
+    if (!userName.trim() || userName.trim() === profile?.name) return;
+    updateProfile({ name: userName.trim() });
+  };
+
+  const handleSaveAvatar = () => {
+    setIsEditingAvatar(false);
+    const trimmed = avatarUrl.trim() || null;
+    if (trimmed === profile?.avatar) return;
+    updateProfile({ avatar: trimmed });
   };
 
   const handleLogout = () => {
     if (window.confirm("Are you sure you want to log out of SharePopcorns?")) {
-      navigate("/auth/login");
+      logout();
     }
   };
 
@@ -53,14 +101,12 @@ const Profile = () => {
       w="full"
       bg="background"
       fontFamily="body"
-      px={2}
+      px={4}
       pt={4}
-      pb={28}
+      pb={12}
     >
       <Box maxW="md" mx="auto">
-        {/* ========================================================
-            1. HERO PASSPORT CARD & AVATAR
-            ======================================================== */}
+        {/* 1. HERO PASSPORT CARD & AVATAR */}
         <Box
           bg="white"
           borderRadius="3xl"
@@ -70,11 +116,8 @@ const Profile = () => {
           border="1px solid"
           borderColor="neutralBorder"
           boxShadow="0 4px 20px rgba(0, 0, 0, 0.02)"
-          position="relative"
-          overflow="hidden"
           textAlign="center"
         >
-          {/* Top Notch Brand Accent */}
           <Box
             w="90px"
             h="6px"
@@ -84,9 +127,7 @@ const Profile = () => {
             mb={6}
           />
 
-          {/* Avatar with Floating Camera Edit Trigger */}
           <Box position="relative" w="104px" h="104px" mx="auto" mb={3.5}>
-            {/* Ambient Avatar Glow */}
             <Box
               position="absolute"
               inset="-3px"
@@ -96,7 +137,6 @@ const Profile = () => {
               filter="blur(8px)"
             />
 
-            {/* Profile Image */}
             <Box
               w="full"
               h="full"
@@ -109,17 +149,15 @@ const Profile = () => {
               bg="neutralSoft"
             >
               <Image
-                src={avatar}
-                alt={userName}
+                src={profile?.avatar || DEFAULT_AVATAR}
+                alt={profile?.name || "User"}
                 w="full"
                 h="full"
                 objectFit="cover"
               />
             </Box>
 
-            {/* Edit Photo Icon Button */}
             <Flex
-              as="label"
               position="absolute"
               bottom="2px"
               right="2px"
@@ -131,36 +169,45 @@ const Profile = () => {
               align="center"
               justify="center"
               cursor="pointer"
+              onClick={() => setIsEditingAvatar((prev) => !prev)}
               boxShadow="0 2px 8px rgba(136, 25, 56, 0.35)"
-              transition="all 0.2s"
-              _hover={{ transform: "scale(1.08)", bg: "primaryDark" }}
-              _active={{ transform: "scale(0.95)" }}
             >
-              <Camera size={15} color="currentColor" strokeWidth={2.2} />
-              <input
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={handleAvatarChange}
-              />
+              <Pencil size={14} color="currentColor" />
             </Flex>
           </Box>
 
-          {/* User Name & Cinephile Passport Badge */}
+          {isEditingAvatar && (
+            <Flex gap={2} mb={4} px={2}>
+              <CustomInput
+                placeholder="Paste avatar image URL..."
+                value={avatarUrl}
+                onChange={(e) => setAvatarUrl(e.target.value)}
+                LeftIcon={LinkIcon}
+              />
+              <CustomButton
+                variant="primary"
+                w="auto"
+                px={4}
+                disabled={isSaving}
+                onClick={handleSaveAvatar}
+              >
+                Save
+              </CustomButton>
+            </Flex>
+          )}
+
           <VStack gap={1.5} mb={4}>
             <Text
-              fontFamily="body"
               fontSize="2xl"
               fontWeight="black"
               color="neutral"
               lineHeight="short"
             >
-              {userName}
+              {profile?.name || "Cinephile"}
             </Text>
 
             <CustomBadge
               variant="ratings"
-              fontFamily="body"
               textTransform="none"
               px={3}
               py={0.8}
@@ -168,13 +215,14 @@ const Profile = () => {
               gap={1.5}
             >
               <Ticket size={12} color="currentColor" />
-              <Text fontFamily="body" fontSize="2xs" fontWeight="bold">
-                Cinephile Passport #0624
+              <Text fontSize="2xs" fontWeight="bold">
+                Cinephile Passport #
+                {profile?._id?.slice(-4)?.toUpperCase() || "0624"}
               </Text>
             </CustomBadge>
           </VStack>
 
-          {/* Quick Cinema Stats Row */}
+          {/* LIVE STATS ROW */}
           <SimpleGrid
             columns={3}
             bg="neutralSoft"
@@ -183,19 +231,18 @@ const Profile = () => {
             border="1px solid"
             borderColor="neutralBorder"
           >
-            <VStack gap={0.5}>
+            <VStack
+              gap={0.5}
+              cursor="pointer"
+              onClick={() => navigate("/my-collection")}
+            >
               <Flex align="center" gap={1} color="primary">
                 <Film size={13} color="currentColor" />
-                <Text
-                  fontFamily="body"
-                  fontSize="md"
-                  fontWeight="black"
-                  lineHeight="1"
-                >
-                  63
+                <Text fontSize="md" fontWeight="black" lineHeight="1">
+                  {stats.watchedCount}
                 </Text>
               </Flex>
-              <Text fontFamily="body" fontSize="3xs" color="neutralMuted">
+              <Text fontSize="3xs" color="neutralMuted">
                 Watched
               </Text>
             </VStack>
@@ -203,42 +250,34 @@ const Profile = () => {
             <VStack gap={0.5} borderX="1px solid" borderColor="neutralBorder">
               <Flex align="center" gap={1} color="secondaryDark">
                 <Star size={13} color="currentColor" fill="currentColor" />
-                <Text
-                  fontFamily="body"
-                  fontSize="md"
-                  fontWeight="black"
-                  lineHeight="1"
-                >
-                  9.4
+                <Text fontSize="md" fontWeight="black" lineHeight="1">
+                  {stats.avgRating}
                 </Text>
               </Flex>
-              <Text fontFamily="body" fontSize="3xs" color="neutralMuted">
+              <Text fontSize="3xs" color="neutralMuted">
                 Avg Rating
               </Text>
             </VStack>
 
-            <VStack gap={0.5}>
+            <VStack
+              gap={0.5}
+              cursor="pointer"
+              onClick={() => navigate("/my-playlist")}
+            >
               <Flex align="center" gap={1} color="tertiaryDark">
                 <Sparkles size={13} color="currentColor" />
-                <Text
-                  fontFamily="body"
-                  fontSize="md"
-                  fontWeight="black"
-                  lineHeight="1"
-                >
-                  4
+                <Text fontSize="md" fontWeight="black" lineHeight="1">
+                  {stats.playlistCount}
                 </Text>
               </Flex>
-              <Text fontFamily="body" fontSize="3xs" color="neutralMuted">
+              <Text fontSize="3xs" color="neutralMuted">
                 Playlists
               </Text>
             </VStack>
           </SimpleGrid>
         </Box>
 
-        {/* ========================================================
-            2. PERSONAL INFORMATION SETTINGS CARD
-            ======================================================== */}
+        {/* 2. ACCOUNT DETAILS CARD */}
         <Box
           bg="white"
           borderRadius="3xl"
@@ -246,10 +285,8 @@ const Profile = () => {
           mb={4}
           border="1px solid"
           borderColor="neutralBorder"
-          boxShadow="0 2px 12px rgba(0, 0, 0, 0.02)"
         >
           <Text
-            fontFamily="body"
             fontSize="xs"
             fontWeight="extrabold"
             color="neutralMuted"
@@ -261,36 +298,32 @@ const Profile = () => {
           </Text>
 
           <VStack gap={4} align="stretch">
-            {/* USERNAME FIELD */}
             <Box>
               <Flex justify="space-between" align="center" mb={1.5}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="bold"
-                  color="neutral"
-                >
+                <Text fontSize="xs" fontWeight="bold" color="neutral">
                   Full Name
                 </Text>
 
                 <Flex
                   align="center"
                   gap={1}
-                  color={isEditingUsername ? "status.success" : "primary"}
+                  color={isEditingName ? "status.success" : "primary"}
                   cursor="pointer"
-                  onClick={() => setIsEditingUsername(!isEditingUsername)}
+                  onClick={() =>
+                    isEditingName ? handleSaveName() : setIsEditingName(true)
+                  }
                 >
-                  {isEditingUsername ? (
+                  {isEditingName ? (
                     <>
-                      <Check size={12} color="currentColor" strokeWidth={2.5} />
-                      <Text fontFamily="body" fontSize="2xs" fontWeight="bold">
+                      <Check size={12} strokeWidth={2.5} />
+                      <Text fontSize="2xs" fontWeight="bold">
                         Save
                       </Text>
                     </>
                   ) : (
                     <>
-                      <Pencil size={11} color="currentColor" />
-                      <Text fontFamily="body" fontSize="2xs" fontWeight="bold">
+                      <Pencil size={11} />
+                      <Text fontSize="2xs" fontWeight="bold">
                         Edit
                       </Text>
                     </>
@@ -298,7 +331,7 @@ const Profile = () => {
                 </Flex>
               </Flex>
 
-              {isEditingUsername ? (
+              {isEditingName ? (
                 <CustomInput
                   value={userName}
                   onChange={(e) => setUserName(e.target.value)}
@@ -313,111 +346,52 @@ const Profile = () => {
                   align="center"
                   gap={2.5}
                 >
-                  <Box color="neutralMuted">
-                    <User size={16} color="currentColor" />
-                  </Box>
-                  <Text
-                    fontFamily="body"
-                    fontSize="sm"
-                    fontWeight="semibold"
-                    color="neutral"
-                  >
-                    {userName}
+                  <User size={16} color="#73778D" />
+                  <Text fontSize="sm" fontWeight="semibold" color="neutral">
+                    {profile?.name}
                   </Text>
                 </Flex>
               )}
             </Box>
 
-            {/* EMAIL ADDRESS FIELD */}
             <Box>
-              <Flex justify="space-between" align="center" mb={1.5}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="bold"
-                  color="neutral"
-                >
-                  Email Address
-                </Text>
+              <Text fontSize="xs" fontWeight="bold" color="neutral" mb={1.5}>
+                Email Address
+              </Text>
+              <Flex
+                bg="neutralSoft"
+                p={3.5}
+                borderRadius="xl"
+                align="center"
+                justify="space-between"
+              >
+                <Flex align="center" gap={2.5}>
+                  <Mail size={16} color="#73778D" />
+                  <Text fontSize="sm" fontWeight="semibold" color="neutral">
+                    {profile?.email}
+                  </Text>
+                </Flex>
 
                 <Flex
+                  bg="status.success"
+                  color="white"
+                  px={2}
+                  py={0.5}
+                  borderRadius="full"
                   align="center"
                   gap={1}
-                  color={isEditingEmail ? "status.success" : "primary"}
-                  cursor="pointer"
-                  onClick={() => setIsEditingEmail(!isEditingEmail)}
                 >
-                  {isEditingEmail ? (
-                    <>
-                      <Check size={12} color="currentColor" strokeWidth={2.5} />
-                      <Text fontFamily="body" fontSize="2xs" fontWeight="bold">
-                        Save
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <Pencil size={11} color="currentColor" />
-                      <Text fontFamily="body" fontSize="2xs" fontWeight="bold">
-                        Edit
-                      </Text>
-                    </>
-                  )}
+                  <ShieldCheck size={10} />
+                  <Text fontSize="4xs" fontWeight="bold">
+                    Verified
+                  </Text>
                 </Flex>
               </Flex>
-
-              {isEditingEmail ? (
-                <CustomInput
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  LeftIcon={Mail}
-                  autoFocus
-                />
-              ) : (
-                <Flex
-                  bg="neutralSoft"
-                  p={3.5}
-                  borderRadius="xl"
-                  align="center"
-                  justify="space-between"
-                >
-                  <Flex align="center" gap={2.5}>
-                    <Box color="neutralMuted">
-                      <Mail size={16} color="currentColor" />
-                    </Box>
-                    <Text
-                      fontFamily="body"
-                      fontSize="sm"
-                      fontWeight="semibold"
-                      color="neutral"
-                    >
-                      {email}
-                    </Text>
-                  </Flex>
-
-                  <Flex
-                    bg="status.success"
-                    color="white"
-                    px={2}
-                    py={0.5}
-                    borderRadius="full"
-                    align="center"
-                    gap={1}
-                  >
-                    <ShieldCheck size={10} color="currentColor" />
-                    <Text fontFamily="body" fontSize="4xs" fontWeight="bold">
-                      Verified
-                    </Text>
-                  </Flex>
-                </Flex>
-              )}
             </Box>
           </VStack>
         </Box>
 
-        {/* ========================================================
-            3. SECURITY & PREFERENCES CARD
-            ======================================================== */}
+        {/* 3. SECURITY CARD */}
         <Box
           bg="white"
           borderRadius="3xl"
@@ -425,10 +399,8 @@ const Profile = () => {
           mb={6}
           border="1px solid"
           borderColor="neutralBorder"
-          boxShadow="0 2px 12px rgba(0, 0, 0, 0.02)"
         >
           <Text
-            fontFamily="body"
             fontSize="xs"
             fontWeight="extrabold"
             color="neutralMuted"
@@ -439,7 +411,6 @@ const Profile = () => {
             Security & Passkey
           </Text>
 
-          {/* Reset Password Action Row */}
           <Flex
             bg="neutralSoft"
             borderRadius="2xl"
@@ -447,9 +418,8 @@ const Profile = () => {
             align="center"
             justify="space-between"
             cursor="pointer"
-            transition="all 0.2s"
             _hover={{ bg: "tertiarySoft" }}
-            onClick={() => navigate("/auth/reset-password")}
+            onClick={() => navigate("/auth/forget-password")}
           >
             <Flex align="center" gap={3}>
               <Flex
@@ -460,56 +430,30 @@ const Profile = () => {
                 align="center"
                 justify="center"
                 color="primary"
-                boxShadow="xs"
               >
-                <Lock size={18} color="currentColor" />
+                <Lock size={18} />
               </Flex>
-
               <Box>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="bold"
-                  color="neutral"
-                >
-                  Reset Password
+                <Text fontSize="xs" fontWeight="bold" color="neutral">
+                  Reset Password via Email
                 </Text>
-                <Text fontFamily="body" fontSize="xs" color="neutralMuted">
-                  Change and secure your login key
+                <Text fontSize="xs" color="neutralMuted">
+                  Send a secure reset link to your inbox
                 </Text>
               </Box>
             </Flex>
-
-            <Box color="neutralMuted">
-              <ChevronRight size={18} color="currentColor" />
-            </Box>
+            <ChevronRight size={18} color="#73778D" />
           </Flex>
         </Box>
 
-        {/* ========================================================
-            4. LOG OUT BUTTON
-            ======================================================== */}
+        {/* 4. LOG OUT BUTTON */}
         <CustomButton
-          fontFamily="body"
           py={5}
-          leftElement={
-            <LogOut size={16} color="currentColor" strokeWidth={2.5} />
-          }
+          leftElement={<LogOut size={16} strokeWidth={2.5} />}
           onClick={handleLogout}
         >
           Log Out
         </CustomButton>
-
-        {/* App Version Tag */}
-        <Text
-          fontFamily="body"
-          fontSize="3xs"
-          color="neutralMuted"
-          textAlign="center"
-          mt={4}
-        >
-          • SharePopcorns v1.0 Edition •
-        </Text>
       </Box>
     </Box>
   );

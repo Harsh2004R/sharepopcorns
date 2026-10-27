@@ -1,42 +1,27 @@
+// src/routes/PublicRoutes.jsx
 import { lazy } from "react";
 import { Navigate } from "react-router-dom";
-import PublicLayout from "../layouts/PublicLayout.jsx";
 
+const AuthLayout = lazy(() => import("../layouts/AuthLayout.jsx"));
+const SimpleLayout = lazy(() => import("../layouts/SimpleLayout.jsx"));
 const VerifyEmail = lazy(
   () => import("../features/verifyEmail/pages/VerifyEmail.jsx"),
 );
 const ForgotPassword = lazy(
   () => import("../features/forgetPassword/pages/ForgotPassword.jsx"),
 );
-const AuthLayout = lazy(() => import("../layouts/AuthLayout.jsx"));
-// 🚀 Industry Standard: Lazy load feature components to reduce initial bundle size
-const Home = lazy(() => import("../features/home/pages/Home.jsx"));
 const Login = lazy(() => import("../features/login/pages/Login.jsx"));
 const Welcome = lazy(() => import("../features/welcome/pages/Welcome.jsx"));
 const Signup = lazy(() => import("../features/signup/pages/Signup.jsx"));
 const ResetPassword = lazy(
   () => import("../features/resetPassword/pages/ResetPassword.jsx"),
 );
-const MyCollection = lazy(
-  () => import("../features/myCollection/pages/MyCollection.jsx"),
+const PlaylistDetails = lazy(
+  () => import("../features/playlistDetails/pages/PlaylistDetails.jsx"),
 );
 
 export const publicRoutes = [
-  {
-    element: <PublicLayout />, // Wraps all child routes
-    children: [
-      {
-        path: "/",
-        element: <Home />,
-      },
-      {
-        path: "/my-collection",
-        element: <MyCollection />,
-      },
-    ],
-  },
-
-  // 🔐 Auth Routes (Clean Screen: Split View on PC, No Navbar/Footer)
+  // 🔐 Auth Routes
   {
     path: "/auth",
     element: <AuthLayout />,
@@ -49,22 +34,18 @@ export const publicRoutes = [
       { path: "reset-password", element: <ResetPassword /> },
     ],
   },
-
+  // 🌐 Publicly Shareable Playlist Reel (Backend uses optionalAuthenticate)
+  {
+    element: <SimpleLayout />,
+    children: [
+      {
+        path: "/playlist/:id",
+        element: <PlaylistDetails />,
+      },
+    ],
+  },
   {
     path: "/welcome",
     element: <Welcome />,
   },
-  // {
-  //   element: <SimpleLayout />,
-  //   children: [
-  //     {
-  //       path: "/login",
-  //       element: <Login />,
-  //     },
-  //     {
-  //       path: "/signup",
-  //       element: <Signup />,
-  //     },
-  //   ],
-  // },
 ];

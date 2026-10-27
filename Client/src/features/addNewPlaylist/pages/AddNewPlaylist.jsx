@@ -1,3 +1,4 @@
+// src/features/addNewPlaylist/pages/AddNewPlaylist.jsx
 import React, { useState } from "react";
 import {
   Box,
@@ -7,33 +8,24 @@ import {
   Textarea,
   SimpleGrid,
 } from "@chakra-ui/react";
-import {
-  X,
-  Ticket,
-  Film,
-  Globe,
-  Lock,
-  Sparkles,
-  Info,
-  Library,
-} from "lucide-react";
+import { Film, Globe, Lock, Sparkles, Info } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { CustomBadge } from "../../../shared/components/CustomBadge";
 import { CustomButton } from "../../../shared/components/CustomButton";
 import { CustomInput } from "../../../shared/components/CustomInput";
+import { useCreatePlaylistMutation } from "../../../hooks/usePlaylistQueries.js";
+import { useThrottledCallback } from "../../../hooks/usePerformance.js";
 
-export default function AddNewPlaylist({ onSubmitPlaylist }) {
+export default function AddNewPlaylist() {
   const navigate = useNavigate();
-
-  // Form states aligned with the playlist schema & controllers
   const [name, setName] = useState("");
   const [visibility, setVisibility] = useState("Public"); // "Public" | "Private"
   const [description, setDescription] = useState("");
   const [selectedVibes, setSelectedVibes] = useState([]);
   const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Quick curator aesthetic tags
+  const { mutate: createPlaylist, isPending } = useCreatePlaylistMutation();
+
   const vibePills = [
     {
       label: "Rainy Day",
@@ -78,40 +70,34 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
     }
   };
 
-  const validateForm = () => {
-    const newErrors = {};
+  const submitPlaylist = useThrottledCallback(() => {
     if (!name.trim()) {
-      newErrors.name = "Playlist title is required";
+      setErrors({ name: "Playlist title is required" });
+      return;
     }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
 
-  const handleSubmit = async (e) => {
+    // Matches backend playlistService.createPlaylist schema (isPublic: boolean)
+    createPlaylist(
+      {
+        name: name.trim(),
+        description: description.trim(),
+        isPublic: visibility === "Public",
+      },
+      {
+        onSuccess: (res) => {
+          const createdId = res?.data?._id;
+          navigate(createdId ? `/playlist/${createdId}` : "/my-playlist", {
+            replace: true,
+          });
+        },
+      },
+    );
+  }, 1500);
+
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
-
-    setIsSubmitting(true);
-
-    const payload = {
-      name: name.trim(),
-      description: description.trim(),
-      visibility,
-      isPrivate: visibility === "Private",
-    };
-
-    try {
-      if (onSubmitPlaylist) {
-        await onSubmitPlaylist(payload);
-      } else {
-        console.log("Submitting Playlist Payload:", payload);
-      }
-      navigate("/playlists");
-    } catch (err) {
-      setErrors({ form: err.message || "Failed to create playlist" });
-    } finally {
-      setIsSubmitting(false);
-    }
+    if (isPending) return;
+    submitPlaylist();
   };
 
   return (
@@ -122,73 +108,9 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
       fontFamily="body"
       px={4}
       pt={4}
-      pb={24}
+      pb={16}
     >
       <Box maxW="lg" mx="auto">
-        {/* ========================================================
-            1. TOP NAVIGATION & BRAND HEADER
-            ======================================================== */}
-        <Flex justify="space-between" align="center" mb={4}>
-          <Flex align="center" gap={3}>
-            <Flex
-              w="42px"
-              h="42px"
-              bg="secondary"
-              borderRadius="2xl"
-              align="center"
-              justify="center"
-              color="secondaryDark"
-              boxShadow="0 4px 12px rgba(255, 209, 102, 0.3)"
-            >
-              <Library size={22} color="currentColor" />
-            </Flex>
-            <Box>
-              <Text fontSize="2xl" fontWeight="extrabold" color="neutral">
-                Create Playlist
-              </Text>
-              <Text fontFamily="body" fontSize="2xs" color="neutralMuted">
-                Curate themed shelves & share reels
-              </Text>
-            </Box>
-          </Flex>
-
-          <Flex
-            w="34px"
-            h="34px"
-            bg="neutralSoft"
-            borderRadius="full"
-            align="center"
-            justify="center"
-            color="neutralMuted"
-            cursor="pointer"
-            transition="all 0.2s"
-            _hover={{ bg: "neutralBorder", color: "neutral" }}
-            onClick={() => navigate(-1)}
-          >
-            <X size={18} color="currentColor" />
-          </Flex>
-        </Flex>
-
-        {/* Global Error Banner */}
-        {errors.form && (
-          <Box
-            bg="primarySoft"
-            color="primary"
-            p={3}
-            borderRadius="xl"
-            mb={4}
-            fontSize="xs"
-            fontWeight="bold"
-            border="1px solid"
-            borderColor="status.error"
-          >
-            {errors.form}
-          </Box>
-        )}
-
-        {/* ========================================================
-            2. MAIN FORM CARD
-            ======================================================== */}
         <Box
           as="form"
           onSubmit={handleSubmit}
@@ -199,10 +121,7 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
           border="1px solid"
           borderColor="neutralBorder"
           boxShadow="0 4px 20px rgba(0, 0, 0, 0.02)"
-          position="relative"
-          overflow="hidden"
         >
-          {/* Top Decorative Notch */}
           <Box
             w="80px"
             h="5px"
@@ -213,36 +132,26 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
           />
 
           <VStack gap={5} align="stretch">
-            {/* PLAYLIST TITLE */}
-            <Box>
-              <CustomInput
-                label="Playlist Title"
-                required
-                fontSize="xs"
-                fontWeight="semibold"
-                rightLabel="Mandatory"
-                bg="transparent"
-                placeholder="e.g. Rainy Day Ghibli, Late Night Thrillers..."
-                LeftIcon={Film}
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (errors.name)
-                    setErrors((prev) => ({ ...prev, name: null }));
-                }}
-                errorText={errors.name}
-              />
-            </Box>
+            <CustomInput
+              label="Playlist Title"
+              required
+              fontSize="xs"
+              fontWeight="semibold"
+              rightLabel="Mandatory"
+              bg="transparent"
+              placeholder="e.g. Rainy Day Ghibli, Late Night Thrillers..."
+              LeftIcon={Film}
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (errors.name) setErrors({});
+              }}
+              errorText={errors.name}
+            />
 
-            {/* VISIBILITY SELECTOR */}
             <Box>
               <Flex justify="space-between" align="center" mb={1.5}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="semibold"
-                  color="neutral"
-                >
+                <Text fontSize="xs" fontWeight="semibold" color="neutral">
                   Playlist Visibility
                 </Text>
                 <CustomBadge variant="ratings" fontSize="2xs" px={2} py={0.2}>
@@ -251,7 +160,6 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
               </Flex>
 
               <SimpleGrid columns={2} gap={2.5}>
-                {/* PUBLIC OPTION */}
                 <Flex
                   p={3.5}
                   borderRadius="2xl"
@@ -263,7 +171,6 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
                   cursor="pointer"
                   direction="column"
                   gap={1}
-                  transition="all 0.2s"
                   onClick={() => setVisibility("Public")}
                 >
                   <Flex align="center" justify="space-between">
@@ -274,40 +181,17 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
                         visibility === "Public" ? "tertiaryDark" : "neutral"
                       }
                     >
-                      <Globe size={16} color="currentColor" />
-                      <Text fontFamily="body" fontSize="xs" fontWeight="bold">
+                      <Globe size={16} />
+                      <Text fontSize="xs" fontWeight="bold">
                         Public
                       </Text>
                     </Flex>
-                    <Box
-                      w="16px"
-                      h="16px"
-                      borderRadius="full"
-                      border="1.5px solid"
-                      borderColor={
-                        visibility === "Public" ? "tertiary" : "neutralBorder"
-                      }
-                      bg={visibility === "Public" ? "tertiary" : "white"}
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                    >
-                      {visibility === "Public" && (
-                        <Box w="6px" h="6px" bg="white" borderRadius="full" />
-                      )}
-                    </Box>
                   </Flex>
-                  <Text
-                    fontFamily="body"
-                    fontSize="13px"
-                    color="neutralMuted"
-                    lineHeight="shorter"
-                  >
-                    Shareable reel link and visible to the cinema community.
+                  <Text fontSize="xs" color="neutralMuted">
+                    Shareable reel link visible to peers.
                   </Text>
                 </Flex>
 
-                {/* PRIVATE OPTION */}
                 <Flex
                   p={3.5}
                   borderRadius="2xl"
@@ -319,7 +203,6 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
                   cursor="pointer"
                   direction="column"
                   gap={1}
-                  transition="all 0.2s"
                   onClick={() => setVisibility("Private")}
                 >
                   <Flex align="center" justify="space-between">
@@ -328,50 +211,22 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
                       gap={1.5}
                       color={visibility === "Private" ? "primary" : "neutral"}
                     >
-                      <Lock size={16} color="currentColor" />
-                      <Text fontFamily="body" fontSize="xs" fontWeight="bold">
+                      <Lock size={16} />
+                      <Text fontSize="xs" fontWeight="bold">
                         Private
                       </Text>
                     </Flex>
-                    <Box
-                      w="16px"
-                      h="16px"
-                      borderRadius="full"
-                      border="1.5px solid"
-                      borderColor={
-                        visibility === "Private" ? "primary" : "neutralBorder"
-                      }
-                      bg={visibility === "Private" ? "primary" : "white"}
-                      display="flex"
-                      alignItems="center"
-                      justifyContent="center"
-                    >
-                      {visibility === "Private" && (
-                        <Box w="6px" h="6px" bg="white" borderRadius="full" />
-                      )}
-                    </Box>
                   </Flex>
-                  <Text
-                    fontFamily="body"
-                    fontSize="13px"
-                    color="neutralMuted"
-                    lineHeight="shorter"
-                  >
-                    Only stored in your personal shelf and hidden from peers.
+                  <Text fontSize="xs" color="neutralMuted">
+                    Stored only on your personal shelf.
                   </Text>
                 </Flex>
               </SimpleGrid>
             </Box>
 
-            {/* DESCRIPTION / SYNOPSIS */}
             <Box>
               <Flex justify="space-between" align="center" mb={1.5}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="semibold"
-                  color="neutral"
-                >
+                <Text fontSize="xs" fontWeight="semibold" color="neutral">
                   About Playlist
                 </Text>
                 <CustomBadge variant="date" fontSize="2xs" px={2} py={0.2}>
@@ -384,29 +239,23 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
                 p={3.5}
                 borderRadius="2xl"
                 position="relative"
-                border="1px solid"
-                borderColor="transparent"
-                _focusWithin={{ borderColor: "brand.focusRing", bg: "white" }}
               >
                 <Textarea
                   bg="transparent"
-                  placeholder="Whimsical comfort animations for rainy Sundays with warm chamomile tea..."
+                  placeholder="Whimsical comfort animations for rainy Sundays..."
                   variant="unstyled"
                   value={description}
                   onChange={(e) => setDescription(e.target.value.slice(0, 280))}
-                  fontFamily="body"
                   fontSize="xs"
                   color="neutral"
                   rows={3}
                   resize="none"
                   p={0}
-                  _placeholder={{ color: "fg.subtle" }}
                 />
                 <Text
                   position="absolute"
                   bottom={2}
                   right={3}
-                  fontFamily="body"
                   fontSize="4xs"
                   color="neutralMuted"
                 >
@@ -415,18 +264,12 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
               </Box>
             </Box>
 
-            {/* CURATOR MOOD / VIBE TAGS */}
             <Box>
               <Flex justify="space-between" align="center" mb={2}>
-                <Text
-                  fontFamily="body"
-                  fontSize="xs"
-                  fontWeight="semibold"
-                  color="neutral"
-                >
+                <Text fontSize="xs" fontWeight="semibold" color="neutral">
                   Curator Aesthetic Vibe
                 </Text>
-                <Text fontFamily="body" fontSize="2xs" color="primary">
+                <Text fontSize="2xs" color="primary">
                   Tap to add to description
                 </Text>
               </Flex>
@@ -448,11 +291,9 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
                       gap={1.5}
                       cursor="pointer"
                       onClick={() => handleVibeClick(vibe)}
-                      transition="all 0.2s"
-                      boxShadow={isSelected ? "xs" : "none"}
                     >
                       <Text fontSize="xs">{vibe.emoji}</Text>
-                      <Text fontFamily="body" fontSize="2xs" fontWeight="bold">
+                      <Text fontSize="2xs" fontWeight="bold">
                         {vibe.label}
                       </Text>
                     </Flex>
@@ -461,7 +302,6 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
               </Flex>
             </Box>
 
-            {/* CURATION TIP BANNER */}
             <Flex
               bg="tertiarySoft"
               borderRadius="2xl"
@@ -469,38 +309,25 @@ export default function AddNewPlaylist({ onSubmitPlaylist }) {
               align="center"
               gap={2.5}
             >
-              <Box color="tertiary" flexShrink={0}>
-                <Info size={16} color="currentColor" />
-              </Box>
-              <Text
-                fontFamily="body"
-                fontSize="2xs"
-                color="neutral"
-                lineHeight="tall"
-              >
+              <Info size={16} />
+              <Text fontSize="2xs" color="neutral" lineHeight="tall">
                 Once created, you can add movies and series directly from your
-                watched collection or wishlist.
+                collection.
               </Text>
             </Flex>
 
-            {/* ACTION BUTTONS */}
             <VStack gap={2.5} pt={2}>
               <CustomButton
                 type="submit"
                 variant="primary"
-                fontFamily="body"
-                disabled={isSubmitting}
+                disabled={isPending}
                 leftElement={<Sparkles size={16} color="currentColor" />}
                 rightElement="✨"
               >
-                {isSubmitting ? "Creating Shelf..." : "Create Curated Playlist"}
+                {isPending ? "Creating Shelf..." : "Create Curated Playlist"}
               </CustomButton>
 
-              <CustomButton
-                variant="neutral"
-                fontFamily="body"
-                onClick={() => navigate(-1)}
-              >
+              <CustomButton variant="neutral" onClick={() => navigate(-1)}>
                 Cancel
               </CustomButton>
             </VStack>

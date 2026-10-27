@@ -196,15 +196,50 @@ export const useProfileQuery = () => {
     retry: 1,
   });
 };
+// Add to src/hooks/useAuthMutations.js
+export const useUpdateProfileMutation = () => {
+  const dispatch = useDispatch();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: authApi.updateProfile,
+    onSuccess: (response) => {
+      const updatedUser = response.data;
+      // 1. Sync Redux + localStorage ("sp_user")
+      dispatch(setCredentials({ user: updatedUser }));
+      // 2. Update TanStack Query cache immediately
+      queryClient.setQueryData(AUTH_QUERY_KEYS.profile, updatedUser);
+
+      toaster.create({
+        title: "Profile Updated ✨",
+        description: response.message || "Your changes have been saved.",
+        type: "success",
+      });
+    },
+    onError: (error) => {
+      toaster.create({
+        title: "Update Failed",
+        description: getErrorMessage(error, "Could not update profile"),
+        type: "error",
+      });
+    },
+  });
+};
 
 export const useLogout = () => {
   const dispatch = useDispatch();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  return () => {
-    dispatch(clearCredentials());
-    queryClient.clear();
-    navigate("/auth/login", { replace: true });
+  return async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // Ignore network errors on logout and clear local session regardless
+    } finally {
+      dispatch(clearCredentials());
+      queryClient.clear();
+      navigate("/auth/login", { replace: true });
+    }
   };
 };

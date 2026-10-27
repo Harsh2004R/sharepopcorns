@@ -1,178 +1,108 @@
+// src/features/myCollection/pages/MyCollection.jsx
 import React, { useState, useMemo } from "react";
 import { Box, Flex, Text, Input, SimpleGrid, Image } from "@chakra-ui/react";
 import {
   Search,
   LayoutGrid,
   Menu,
-  SlidersHorizontal,
   Check,
   ChevronDown,
   Star,
   Ticket,
   Heart,
-  MessageSquare,
   Clock,
+  Plus,
+  X,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useMoviesQuery } from "../../../hooks/useMovieQueries.js";
+import { useDebounce } from "../../../hooks/usePerformance.js";
+import { CustomButton } from "../../../shared/components/CustomButton.jsx";
 
-// ==========================================
-// DUMMY COLLECTION DATA
-// ==========================================
-const mockMovies = [
-  {
-    id: 1,
-    title: "Spirited Away ",
-    type: "Movie",
-    year: 2001,
-    rating: 9.5,
-    status: "Watched",
-    mood: "Comfort Watch",
-    moodVariant: "secondary", // soft yellow
-    timeAgo: "2 days ago",
-    statIcon: "heart",
-    statText: "Re-watched 4x",
-    poster:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT-xULuOTApe4ibW14wHgzhG_fe8BHAEy5vtAkVoFWMDA&s=10",
-    addedTimestamp: 10,
-  },
-  {
-    id: 2,
-    title: "Past Lives",
-    type: "Movie",
-    year: 2023,
-    rating: 9.0,
-    status: "Watched",
-    mood: "Tearjerker",
-    moodVariant: "primarySoft", // soft pink
-    timeAgo: "Oct 12",
-    statIcon: "note",
-    statText: "12 notes",
-    poster:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRNLyMduFg5824KD_zJOp68YFAHGl7cqktBc26WmsttOw&s=10",
-    addedTimestamp: 9,
-  },
-  {
-    id: 3,
-    title: "Severance",
-    type: "Series",
-    year: 2022,
-    rating: 9.2,
-    status: "Watched",
-    mood: "Mind-Bender",
-    moodVariant: "tertiarySoft", // soft blue
-    timeAgo: "Sep 28",
-    statIcon: "heart",
-    statText: "Season 1 Done",
-    poster:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRUTGxZDdvOnoONixASEfI5rXxKhqO-2roxDAnSEHrsiw&s=10g",
-    addedTimestamp: 8,
-  },
-  {
-    id: 4,
-    title: "Little Women",
-    type: "Movie",
-    year: 2019,
-    rating: 9.0,
-    status: "Watched",
-    mood: "Autumn Vibe",
-    moodVariant: "secondary",
-    timeAgo: "Sep 15",
-    statIcon: "note",
-    statText: "Cozy favourite",
-    poster:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwQng2-a15SOL36EX8pufCm2MB0lBrTE8iYsgl4zCLdQ&s=10",
-    addedTimestamp: 7,
-  },
-  {
-    id: 5,
-    title: "Dune: Part Two",
-    type: "Movie",
-    year: 2024,
-    rating: 8.8,
-    status: "Wishlist",
-    mood: "Sci-Fi Epic",
-    moodVariant: "tertiarySoft",
-    timeAgo: "Added Oct 01",
-    statIcon: "note",
-    statText: "IMAX only",
-    poster:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQQcbTH8J2fj9Pw85x-izGTpDxUQMM4k-o84TY9tD2PFg&s=10",
-    addedTimestamp: 6,
-  },
-  {
-    id: 6,
-    title: "Heartstopper",
-    type: "Series",
-    year: 2023,
-    rating: 8.8,
-    status: "Scheduled",
-    mood: "Pure Warmth",
-    moodVariant: "primarySoft",
-    timeAgo: "Friday 8:30 PM",
-    statIcon: "heart",
-    statText: "With Alex",
-    poster:
-      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRz2m4x0eK7Wq_7SKHxFvZ7u0FArLwCO3JIeavZL8kMEw&s=10",
-    addedTimestamp: 5,
-  },
-];
+const FALLBACK_POSTER =
+  "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=400&auto=format&fit=crop";
+
+const formatCardDate = (movie) => {
+  const raw =
+    movie.status === "scheduled"
+      ? movie.scheduledDate
+      : movie.watchedDate || movie.createdAt;
+  if (!raw) return "Added recently";
+  return new Date(raw).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+};
 
 const MyCollection = () => {
-  // ==========================================
-  // FILTER STATES
-  // ==========================================
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeStatus, setActiveStatus] = useState("Watched");
-  const [sortBy, setSortBy] = useState("recent");
-  const [typeFilter, setTypeFilter] = useState("All");
-  const [ratingFilter, setRatingFilter] = useState("all");
-  const [viewMode, setViewMode] = useState("grid"); // "grid" | "list"
   const navigate = useNavigate();
-  // Counts for tabs
+  const location = useLocation();
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebounce(searchQuery, 250);
+
+  const [activeStatus, setActiveStatus] = useState(
+    location.state?.initialStatus || "all",
+  );
+  const [sortBy, setSortBy] = useState("recent");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [ratingFilter, setRatingFilter] = useState("all");
+  const [viewMode, setViewMode] = useState("grid");
+
+  const { data, isLoading } = useMoviesQuery();
+  const allMovies = data?.movies || [];
+
   const counts = useMemo(() => {
     return {
-      all: mockMovies.length,
-      watched: mockMovies.filter((m) => m.status === "Watched").length,
-      wishlist: mockMovies.filter((m) => m.status === "Wishlist").length,
-      scheduled: mockMovies.filter((m) => m.status === "Scheduled").length,
+      all: allMovies.length,
+      watched: allMovies.filter((m) => m.status === "watched").length,
+      wishlist: allMovies.filter((m) => m.status === "wishlist").length,
+      scheduled: allMovies.filter((m) => m.status === "scheduled").length,
     };
-  }, []);
+  }, [allMovies]);
 
-  // Filter & Sort Logic
   const filteredMovies = useMemo(() => {
-    return mockMovies
+    return allMovies
       .filter((movie) => {
-        // Status tab
-        if (activeStatus !== "All" && movie.status !== activeStatus)
+        if (activeStatus !== "all" && movie.status !== activeStatus)
           return false;
-        // Type filter
-        if (typeFilter !== "All" && movie.type !== typeFilter) return false;
-        // Rating filter
-        if (ratingFilter !== "all" && movie.rating < parseFloat(ratingFilter)) {
+        if (typeFilter !== "all" && movie.type !== typeFilter) return false;
+        if (
+          ratingFilter !== "all" &&
+          (movie.rating === null || movie.rating < parseFloat(ratingFilter))
+        ) {
           return false;
         }
-        // Search filter (title or mood)
-        if (searchQuery.trim() !== "") {
-          const q = searchQuery.toLowerCase();
-          const matchTitle = movie.title.toLowerCase().includes(q);
-          const matchMood = movie.mood.toLowerCase().includes(q);
-          if (!matchTitle && !matchMood) return false;
+        if (debouncedSearch.trim() !== "") {
+          const q = debouncedSearch.toLowerCase();
+          const matchTitle = movie.title?.toLowerCase().includes(q);
+          const matchDesc = movie.description?.toLowerCase().includes(q);
+          const matchMood = movie.moodTags?.some((t) =>
+            t.toLowerCase().includes(q),
+          );
+          if (!matchTitle && !matchDesc && !matchMood) return false;
         }
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === "recent") return b.addedTimestamp - a.addedTimestamp;
-        if (sortBy === "rating") return b.rating - a.rating;
-        if (sortBy === "year") return b.year - a.year;
+        if (sortBy === "recent") {
+          return (
+            new Date(b.watchedDate || b.createdAt) -
+            new Date(a.watchedDate || a.createdAt)
+          );
+        }
+        if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
         if (sortBy === "alpha") return a.title.localeCompare(b.title);
         return 0;
       });
-  }, [searchQuery, activeStatus, sortBy, typeFilter, ratingFilter]);
-
-  const truncate = (str, max = 20) => {
-    if (!str) return "";
-    return str.length > max ? `${str.slice(0, max)}...` : str;
-  };
+  }, [
+    allMovies,
+    activeStatus,
+    typeFilter,
+    ratingFilter,
+    debouncedSearch,
+    sortBy,
+  ]);
 
   return (
     <Box
@@ -182,20 +112,15 @@ const MyCollection = () => {
       fontFamily="body"
       px={4}
       pt={4}
-      pb={24}
+      pb={12}
     >
       <Box maxW="lg" mx="auto">
-        {/* ========================================================
-            1. HEADER ROW[cite: 16]
-            ======================================================== */}
+        {/* 1. HEADER ROW */}
         <Flex justify="space-between" align="center" mb={4}>
           <Flex align="center" gap={2.5}>
-            {/* Title */}
             <Text fontSize="2xl" fontWeight="extrabold" color="neutral">
               My Collection
             </Text>
-
-            {/* Total items pill badge */}
             <Flex
               bg="secondary"
               px={2.5}
@@ -209,27 +134,24 @@ const MyCollection = () => {
             </Flex>
           </Flex>
 
-          {/* Settings/Slider Button */}
           <Flex
             w="38px"
             h="38px"
-            bg="neutralSoft"
+            bg="primary"
+            color="white"
             borderRadius="full"
             align="center"
             justify="center"
-            color="neutral"
             cursor="pointer"
-            _hover={{ bg: "neutralBorder" }}
+            onClick={() => navigate("/add")}
+            _hover={{ bg: "primaryDark" }}
           >
-            <SlidersHorizontal size={18} color="currentColor" />
+            <Plus size={18} color="currentColor" />
           </Flex>
         </Flex>
 
-        {/* ========================================================
-            2. SEARCH & VIEW SWITCHER BAR[cite: 16]
-            ======================================================== */}
+        {/* 2. DEBOUNCED SEARCH & VIEW SWITCHER BAR */}
         <Flex gap={2} align="center" mb={4}>
-          {/* Search Input Box */}
           <Flex
             flex={1}
             bg="neutralSoft"
@@ -242,7 +164,7 @@ const MyCollection = () => {
             <Search size={16} color="#73778D" />
             <Input
               variant="unstyled"
-              placeholder="Search movies, series, or tags..."
+              placeholder="Search movies, series, or moods..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               fontSize="sm"
@@ -252,9 +174,17 @@ const MyCollection = () => {
               h="auto"
               _placeholder={{ color: "neutralMuted" }}
             />
+            {searchQuery && (
+              <Box
+                cursor="pointer"
+                color="neutralMuted"
+                onClick={() => setSearchQuery("")}
+              >
+                <X size={14} />
+              </Box>
+            )}
           </Flex>
 
-          {/* Grid / List Layout Switcher */}
           <Flex
             bg="neutralSoft"
             borderRadius="full"
@@ -293,9 +223,7 @@ const MyCollection = () => {
           </Flex>
         </Flex>
 
-        {/* ========================================================
-            3. STATUS HORIZONTAL TABS[cite: 16]
-            ======================================================== */}
+        {/* 3. STATUS HORIZONTAL TABS */}
         <Flex
           gap={2}
           overflowX="auto"
@@ -306,145 +234,60 @@ const MyCollection = () => {
             "&::-webkit-scrollbar": { display: "none" },
           }}
         >
-          {/* ALL TAB */}
-          <Flex
-            align="center"
-            gap={1.5}
-            px={3.5}
-            py={1.5}
-            borderRadius="full"
-            cursor="pointer"
-            bg={activeStatus === "All" ? "primary" : "neutralSoft"}
-            color={activeStatus === "All" ? "white" : "neutral"}
-            onClick={() => setActiveStatus("All")}
-            flexShrink={0}
-          >
-            <Text fontSize="xs" fontWeight="bold">
-              All
-            </Text>
-            <Flex
-              bg={activeStatus === "All" ? "whiteAlpha.300" : "neutralBorder"}
-              px={1.5}
-              py={0.2}
-              borderRadius="full"
-            >
-              <Text fontSize="2xs" fontWeight="bold">
-                {counts.all}
-              </Text>
-            </Flex>
-          </Flex>
-
-          {/* WATCHED TAB */}
-          <Flex
-            align="center"
-            gap={1.5}
-            px={3.5}
-            py={1.5}
-            borderRadius="full"
-            cursor="pointer"
-            bg={activeStatus === "Watched" ? "primary" : "neutralSoft"}
-            color={activeStatus === "Watched" ? "white" : "neutral"}
-            onClick={() => setActiveStatus("Watched")}
-            flexShrink={0}
-          >
-            {activeStatus === "Watched" && (
+          {[
+            { id: "all", label: "All", count: counts.all },
+            { id: "watched", label: "Watched", count: counts.watched },
+            { id: "wishlist", label: "Wishlist", count: counts.wishlist },
+            { id: "scheduled", label: "Scheduled", count: counts.scheduled },
+          ].map((tab) => {
+            const isActive = activeStatus === tab.id;
+            return (
               <Flex
-                w="16px"
-                h="16px"
-                bg="white"
-                borderRadius="full"
+                key={tab.id}
                 align="center"
-                justify="center"
-                color="primary"
+                gap={1.5}
+                px={3.5}
+                py={1.5}
+                borderRadius="full"
+                cursor="pointer"
+                bg={isActive ? "primary" : "neutralSoft"}
+                color={isActive ? "white" : "neutral"}
+                onClick={() => setActiveStatus(tab.id)}
+                flexShrink={0}
               >
-                <Check size={11} color="currentColor" strokeWidth={3} />
+                {isActive && tab.id === "watched" && (
+                  <Flex
+                    w="16px"
+                    h="16px"
+                    bg="white"
+                    borderRadius="full"
+                    align="center"
+                    justify="center"
+                    color="primary"
+                  >
+                    <Check size={11} color="currentColor" strokeWidth={3} />
+                  </Flex>
+                )}
+                <Text fontSize="xs" fontWeight="bold">
+                  {tab.label}
+                </Text>
+                <Flex
+                  bg={isActive ? "whiteAlpha.300" : "neutralBorder"}
+                  px={1.5}
+                  py={0.2}
+                  borderRadius="full"
+                >
+                  <Text fontSize="2xs" fontWeight="bold">
+                    {tab.count}
+                  </Text>
+                </Flex>
               </Flex>
-            )}
-            <Text fontSize="xs" fontWeight="bold">
-              Watched
-            </Text>
-            <Flex
-              bg={
-                activeStatus === "Watched" ? "whiteAlpha.300" : "neutralBorder"
-              }
-              px={1.5}
-              py={0.2}
-              borderRadius="full"
-            >
-              <Text fontSize="2xs" fontWeight="bold">
-                {counts.watched}
-              </Text>
-            </Flex>
-          </Flex>
-
-          {/* WISHLIST TAB */}
-          <Flex
-            align="center"
-            gap={1.5}
-            px={3.5}
-            py={1.5}
-            borderRadius="full"
-            cursor="pointer"
-            bg={activeStatus === "Wishlist" ? "primary" : "neutralSoft"}
-            color={activeStatus === "Wishlist" ? "white" : "neutral"}
-            onClick={() => setActiveStatus("Wishlist")}
-            flexShrink={0}
-          >
-            <Text fontSize="xs" fontWeight="bold">
-              Wishlist
-            </Text>
-            <Flex
-              bg={
-                activeStatus === "Wishlist" ? "whiteAlpha.300" : "neutralBorder"
-              }
-              px={1.5}
-              py={0.2}
-              borderRadius="full"
-            >
-              <Text fontSize="2xs" fontWeight="bold">
-                {counts.wishlist}
-              </Text>
-            </Flex>
-          </Flex>
-
-          {/* SCHEDULED TAB */}
-          <Flex
-            align="center"
-            gap={1.5}
-            px={3.5}
-            py={1.5}
-            borderRadius="full"
-            cursor="pointer"
-            bg={activeStatus === "Scheduled" ? "primary" : "neutralSoft"}
-            color={activeStatus === "Scheduled" ? "white" : "neutral"}
-            onClick={() => setActiveStatus("Scheduled")}
-            flexShrink={0}
-          >
-            <Text fontSize="xs" fontWeight="bold">
-              Scheduled
-            </Text>
-            <Flex
-              bg={
-                activeStatus === "Scheduled"
-                  ? "whiteAlpha.300"
-                  : "neutralBorder"
-              }
-              px={1.5}
-              py={0.2}
-              borderRadius="full"
-            >
-              <Text fontSize="2xs" fontWeight="bold">
-                {counts.scheduled}
-              </Text>
-            </Flex>
-          </Flex>
+            );
+          })}
         </Flex>
 
-        {/* ========================================================
-            4. DROPDOWN FILTERS ROW[cite: 16]
-            ======================================================== */}
+        {/* 4. DROPDOWN FILTERS ROW */}
         <Flex gap={2} align="center" justify="space-between" mb={5}>
-          {/* SORT DROPDOWN */}
           <Box position="relative">
             <Flex align="center" gap={1} cursor="pointer">
               <Text fontSize="xs" fontWeight="bold" color="primary">
@@ -452,12 +295,10 @@ const MyCollection = () => {
               </Text>
               <Text fontSize="xs" fontWeight="semibold" color="neutral">
                 {sortBy === "recent"
-                  ? "Recent watched"
+                  ? "Recent"
                   : sortBy === "rating"
                     ? "Top Rated"
-                    : sortBy === "year"
-                      ? "Release Year"
-                      : "A - Z"}
+                    : "A - Z"}
               </Text>
               <ChevronDown size={12} color="black" />
             </Flex>
@@ -472,20 +313,23 @@ const MyCollection = () => {
                 width: "100%",
               }}
             >
-              <option value="recent">Recent watched</option>
+              <option value="recent">Recent</option>
               <option value="rating">Top Rated</option>
-              <option value="year">Release Year</option>
               <option value="alpha">Alphabetical</option>
             </select>
           </Box>
 
-          {/* TYPE DROPDOWN */}
           <Box position="relative">
             <Flex align="center" gap={1} cursor="pointer">
               <Text fontSize="xs" fontWeight="semibold" color="neutralMuted">
                 Type:
               </Text>
-              <Text fontSize="xs" fontWeight="bold" color="neutral">
+              <Text
+                fontSize="xs"
+                fontWeight="bold"
+                color="neutral"
+                textTransform="capitalize"
+              >
                 {typeFilter}
               </Text>
               <ChevronDown size={12} color="#73778D" />
@@ -501,13 +345,12 @@ const MyCollection = () => {
                 width: "100%",
               }}
             >
-              <option value="All">All</option>
-              <option value="Movie">Movie</option>
-              <option value="Series">Web Series</option>
+              <option value="all">All</option>
+              <option value="movie">Movie</option>
+              <option value="series">Web Series</option>
             </select>
           </Box>
 
-          {/* RATING DROPDOWN */}
           <Box position="relative">
             <Flex align="center" gap={1} cursor="pointer">
               <Text fontSize="xs" fontWeight="semibold" color="neutralMuted">
@@ -537,10 +380,14 @@ const MyCollection = () => {
           </Box>
         </Flex>
 
-        {/* ========================================================
-            5. COLLECTION ITEMS GRID[cite: 16]
-            ======================================================== */}
-        {filteredMovies.length === 0 ? (
+        {/* 5. COLLECTION ITEMS GRID */}
+        {isLoading ? (
+          <Box p={8} textAlign="center">
+            <Text fontSize="sm" color="neutralMuted">
+              Opening your cinema shelf... 🍿
+            </Text>
+          </Box>
+        ) : filteredMovies.length === 0 ? (
           <Box
             bg="white"
             p={8}
@@ -553,34 +400,34 @@ const MyCollection = () => {
               🍿
             </Text>
             <Text fontSize="sm" fontWeight="bold" color="neutral">
-              No titles match your filter
+              {allMovies.length === 0
+                ? "Your collection is empty"
+                : "No titles match your filter"}
             </Text>
-            <Text fontSize="xs" color="neutralMuted" mt={1}>
-              Try clearing filters or changing your search criteria.
+            <Text fontSize="xs" color="neutralMuted" mt={1} mb={4}>
+              {allMovies.length === 0
+                ? "Start logging movies or series you've watched or want to watch!"
+                : "Try clearing filters or changing your search criteria."}
             </Text>
+            {allMovies.length === 0 && (
+              <CustomButton
+                variant="primary"
+                w="auto"
+                px={5}
+                onClick={() => navigate("/add")}
+              >
+                + Log Your First Title
+              </CustomButton>
+            )}
           </Box>
         ) : (
           <SimpleGrid columns={viewMode === "grid" ? 2 : 1} gap={3.5}>
             {filteredMovies.map((movie) => {
-              // Mood sticker background mapping
-              const moodBg =
-                movie.moodVariant === "secondary"
-                  ? "secondary"
-                  : movie.moodVariant === "primarySoft"
-                    ? "primarySoft"
-                    : "tertiarySoft";
-
-              const moodTextColor =
-                movie.moodVariant === "secondary"
-                  ? "secondaryDark"
-                  : movie.moodVariant === "primarySoft"
-                    ? "primary"
-                    : "tertiaryDark";
-
+              const primaryMood = movie.moodTags?.[0] || "Cozy";
               return (
                 <Box
-                  key={movie.id}
-                  onClick={() => navigate("/content/details")}
+                  key={movie._id}
+                  onClick={() => navigate(`/movies/${movie._id}`)}
                   bg="white"
                   borderRadius="3xl"
                   p={2.5}
@@ -590,8 +437,10 @@ const MyCollection = () => {
                   display="flex"
                   flexDirection={viewMode === "grid" ? "column" : "row"}
                   gap={3}
+                  cursor="pointer"
+                  transition="all 0.2s"
+                  _hover={{ transform: "translateY(-2px)" }}
                 >
-                  {/* Poster Image with Overlay Badges[cite: 16] */}
                   <Box
                     position="relative"
                     w={viewMode === "grid" ? "full" : "105px"}
@@ -602,19 +451,18 @@ const MyCollection = () => {
                     flexShrink={0}
                   >
                     <Image
-                      src={movie.poster}
+                      src={movie.image || FALLBACK_POSTER}
                       alt={movie.title}
                       w="full"
                       h="full"
                       objectFit="cover"
                     />
 
-                    {/* Top-Left Mood Badge[cite: 16] */}
                     <Flex
                       position="absolute"
                       top={2}
                       left={2}
-                      bg={moodBg}
+                      bg="secondary"
                       px={2}
                       py={0.5}
                       borderRadius="full"
@@ -623,32 +471,32 @@ const MyCollection = () => {
                       <Text
                         fontSize="2xs"
                         fontWeight="bold"
-                        color={moodTextColor}
+                        color="secondaryDark"
                       >
-                        {movie.mood}
+                        {primaryMood}
                       </Text>
                     </Flex>
 
-                    {/* Top-Right Rating Badge[cite: 16] */}
-                    <Flex
-                      position="absolute"
-                      top={2}
-                      right={2}
-                      bg="rgba(255, 255, 255, 0.9)"
-                      backdropFilter="blur(4px)"
-                      px={2}
-                      py={0.5}
-                      borderRadius="full"
-                      align="center"
-                      gap={0.5}
-                    >
-                      <Star size={10} color="#8A6500" fill="#8A6500" />
-                      <Text fontSize="2xs" fontWeight="bold" color="neutral">
-                        {movie.rating.toFixed(1)}
-                      </Text>
-                    </Flex>
+                    {movie.rating !== null && movie.rating !== undefined && (
+                      <Flex
+                        position="absolute"
+                        top={2}
+                        right={2}
+                        bg="rgba(255, 255, 255, 0.9)"
+                        backdropFilter="blur(4px)"
+                        px={2}
+                        py={0.5}
+                        borderRadius="full"
+                        align="center"
+                        gap={0.5}
+                      >
+                        <Star size={10} color="#8A6500" fill="#8A6500" />
+                        <Text fontSize="2xs" fontWeight="bold" color="neutral">
+                          {Number(movie.rating).toFixed(1)}
+                        </Text>
+                      </Flex>
+                    )}
 
-                    {/* Bottom Date Overlay Badge[cite: 16] */}
                     <Flex
                       position="absolute"
                       bottom={2}
@@ -664,12 +512,11 @@ const MyCollection = () => {
                     >
                       <Clock size={10} color="currentColor" />
                       <Text fontSize="2xs" fontWeight="semibold">
-                        {movie.timeAgo}
+                        {formatCardDate(movie)}
                       </Text>
                     </Flex>
                   </Box>
 
-                  {/* Card Content[cite: 16] */}
                   <Flex
                     direction="column"
                     flex={1}
@@ -678,7 +525,6 @@ const MyCollection = () => {
                     px={1}
                   >
                     <Box>
-                      {/* Format and Year row */}
                       <Flex justify="space-between" align="center" mb={0.5}>
                         <Text
                           fontSize="xs"
@@ -689,12 +535,16 @@ const MyCollection = () => {
                         >
                           {movie.type}
                         </Text>
-                        <Text fontSize="xs" fontWeight="bold" color="tertiary">
-                          {movie.year}
+                        <Text
+                          fontSize="2xs"
+                          fontWeight="bold"
+                          color="tertiary"
+                          textTransform="capitalize"
+                        >
+                          {movie.status}
                         </Text>
                       </Flex>
 
-                      {/* Movie Title */}
                       <Text
                         fontSize="md"
                         fontWeight="bold"
@@ -703,11 +553,10 @@ const MyCollection = () => {
                         lineHeight="short"
                         title={movie.title}
                       >
-                        {truncate(movie.title, 30)}
+                        {movie.title}
                       </Text>
                     </Box>
 
-                    {/* Bottom Stats & Mini Ticket Row[cite: 16] */}
                     <Flex
                       justify="space-between"
                       align="center"
@@ -717,17 +566,12 @@ const MyCollection = () => {
                       borderColor="neutralSoft"
                     >
                       <Flex align="center" gap={1.5} color="neutralMuted">
-                        {movie.statIcon === "heart" ? (
-                          <Heart size={12} color="#881938" fill="#881938" />
-                        ) : (
-                          <MessageSquare size={12} color="#73778D" />
-                        )}
-                        <Text fontSize="xs" fontWeight="semibold">
-                          {movie.statText}
+                        <Heart size={12} color="#881938" fill="#881938" />
+                        <Text fontSize="xs" fontWeight="semibold" lineClamp={1}>
+                          {movie.description || primaryMood}
                         </Text>
                       </Flex>
 
-                      {/* Mini Yellow Ticket Icon */}
                       <Flex
                         w="22px"
                         h="22px"
@@ -736,7 +580,7 @@ const MyCollection = () => {
                         borderRadius="full"
                         align="center"
                         justify="center"
-                        cursor="pointer"
+                        flexShrink={0}
                       >
                         <Ticket size={11} color="currentColor" />
                       </Flex>

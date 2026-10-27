@@ -37,4 +37,13 @@ export const authApi = {
     const { data } = await apiClient.get("/users/profile");
     return data.data;
   },
+  updateProfile: async (payload) => {
+    // payload: { name, avatar }
+    const { data } = await apiClient.patch("/users/profile", payload);
+    return data;
+  },
+  logout: async () => {
+    const { data } = await apiClient.post("/auth/logout");
+    return data;
+  },
 };

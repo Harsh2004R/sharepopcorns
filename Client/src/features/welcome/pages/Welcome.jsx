@@ -1,3 +1,4 @@
+// src/features/welcome/pages/Welcome.jsx
 import React from "react";
 import { Box, Flex, Image, Text, VStack } from "@chakra-ui/react";
 import {
@@ -8,13 +9,20 @@ import {
   Ticket,
   ChevronLeft,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { CustomButton } from "../../../shared/components/CustomButton"; // Adjust path as needed
-import { CustomBadge } from "../../../shared/components/CustomBadge"; // Adjust path as needed
+import { useNavigate, Navigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { CustomButton } from "../../../shared/components/CustomButton";
+import { CustomBadge } from "../../../shared/components/CustomBadge";
 import Logo from "../../../logo/logo_nobg.svg";
 
 const Welcome = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useSelector((state) => state.auth);
+
+  // If already authenticated, redirect to Home immediately
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <Box
@@ -25,6 +33,7 @@ const Welcome = () => {
       py={10}
       fontFamily="body"
       display="flex"
+      alignItems="center"
     >
       <style>
         {`
@@ -38,24 +47,22 @@ const Welcome = () => {
           }
         `}
       </style>
+
       <Flex direction="column" align="center" w="full" maxW="md" mx="auto">
         {/* Main Hero Card */}
-
         <Box
           w="full"
           bg="white"
           borderRadius="3xl"
           px={6}
           pt={10}
-          pb={10}
+          pb={8}
           mb={6}
-          // border="1px solid"
-          // borderColor="neutralBorder"
           position="relative"
           overflow="hidden"
           textAlign="center"
         >
-          {/* Top Peeking Yellow Badge */}
+          {/* Top Peeking Badge */}
           <Flex
             position="absolute"
             top="10px"
@@ -73,12 +80,12 @@ const Welcome = () => {
             >
               <Ticket size={12} color="currentColor" />
               <Text fontFamily="body" fontSize="2xs" fontWeight="bold">
-                Share popcorns
+                SharePopcorns 🍿
               </Text>
             </CustomBadge>
           </Flex>
 
-          {/* Decorative Floating Icon Circles (Popcorn mascot omitted) */}
+          {/* Decorative Floating Icon Circles & Center Logo */}
           <Box
             mt="20px"
             position="relative"
@@ -93,11 +100,12 @@ const Welcome = () => {
               left="52%"
               w="100px"
               h="100px"
-              bg="secondary/50"
+              bg="secondarySoft"
               borderRadius="full"
               zIndex={0}
               animation="auraPulse 4s ease-in-out infinite"
             />
+
             {/* Top-Left Soft Blue Icon */}
             <Flex
               position="absolute"
@@ -113,16 +121,19 @@ const Welcome = () => {
             >
               <ChevronLeft size={14} color="currentColor" strokeWidth={2.5} />
             </Flex>
+
+            {/* Center Brand Logo */}
             <Box
-              animation="shadowBreath 3.5s ease-in-out infinite"
               w="80px"
               h="80px"
               position="absolute"
               top="35px"
               left="65px"
+              zIndex={1}
             >
-              <Image src={Logo} alt="logo.svg" w="100%" h="100%" />
+              <Image src={Logo} alt="SharePopcorns Logo" w="100%" h="100%" />
             </Box>
+
             {/* Top-Right Soft Pink Heart */}
             <Flex
               position="absolute"
@@ -130,8 +141,8 @@ const Welcome = () => {
               right="12px"
               w="40px"
               h="40px"
-              bg="primaryDark/30"
-              color="primaryDark"
+              bg="primarySoft"
+              color="primary"
               borderRadius="full"
               align="center"
               justify="center"
@@ -157,7 +168,7 @@ const Welcome = () => {
             </Flex>
           </Box>
 
-          {/* Main Title & Subtitle */}
+          {/* Title & Description */}
           <VStack gap={3} maxW="xs" mx="auto">
             <Text
               fontFamily="body"
@@ -181,9 +192,8 @@ const Welcome = () => {
           </VStack>
         </Box>
 
-        {/* Bottom Action Buttons */}
+        {/* Action Buttons */}
         <VStack w="full" gap={3}>
-          {/* Get Started Button (Blue Theme Token) */}
           <CustomButton
             bg="tertiaryDark"
             color="white"
@@ -207,12 +217,11 @@ const Welcome = () => {
             Get Started
           </CustomButton>
 
-          {/* Log In Button */}
           <CustomButton
             bg="white"
             color="neutral"
             border="1px solid"
-            borderColor="border.muted"
+            borderColor="neutralBorder"
             _hover={{ bg: "neutralSoft" }}
             fontFamily="body"
             onClick={() => navigate("/auth/login")}
